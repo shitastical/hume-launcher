@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Top-shelf suggestions: what's popular in India on the user's streaming services, from TMDB
+ * Top-shelf suggestions: what's popular in the US on the user's streaming services, from TMDB
  * (themoviedb.org). Results and artwork are cached on disk; everything here runs off the UI thread.
  */
 final class Suggestions {
@@ -52,7 +52,7 @@ final class Suggestions {
     /** POOL titles are fetched per service; PER_SOURCE of them are picked at random each refresh. */
     static final int PER_SOURCE = 3, POOL = 20, MAX_ITEMS = 10;
 
-    /** A streaming service available in India: TMDB provider id, display name, Android TV package. */
+    /** A streaming service available in the US: TMDB provider id, display name, Android TV package. */
     static final class Provider {
         final int id;
         final String name, pkg, jwShort, jwTech;
@@ -66,13 +66,19 @@ final class Suggestions {
         }
     }
 
+    /**
+     * jwShort and jwTech are JustWatch's package identifiers for the US; a wrong one silently
+     * filters every title out, so they are read off JustWatch's own offers rather than guessed.
+     */
     static final List<Provider> PROVIDERS = Arrays.asList(
             new Provider(8, "Netflix", "com.netflix.ninja", "nfx", "netflix"),
-            new Provider(119, "Prime Video", "com.amazon.amazonvideo.livingroom", "prv", "amazonprimevideo"),
-            new Provider(2336, "JioHotstar", "in.startv.hotstar", "jhs", "jiohotstar"),
+            new Provider(9, "Prime Video", "com.amazon.amazonvideo.livingroom", "amp", "amazonprime"),
+            new Provider(337, "Disney+", "com.disney.disneyplus", "dnp", "disneyplus"),
+            new Provider(15, "Hulu", "com.hulu.livingroomplus", "hlu", "hulu"),
+            new Provider(1899, "HBO Max", "com.wbd.stream", "mxx", "max"),
             new Provider(350, "Apple TV", "com.apple.atve.androidtv.appletv", "atp", "appletvplus"),
-            new Provider(232, "ZEE5", "com.graymatrix.did", "zee", "zee5"),
-            new Provider(237, "SonyLIV", "com.sonyliv", "snl", "sonyliv"));
+            new Provider(386, "Peacock", "com.peacocktv.peacockandroid", "pct", "peacocktv"),
+            new Provider(531, "Paramount+", "com.cbs.ott", "ppp", "paramountpluspremium"));
 
     /**
      * Apps that open Cinemeta titles by IMDb id. Not streaming services, so they never appear in
@@ -83,8 +89,8 @@ final class Suggestions {
             NUVIO = new Provider(NUVIO_ID, "Nuvio", "com.nuvio.tv", "", "");
 
     /** Original-language filters offered in settings (TMDB ISO 639-1 codes). */
-    static final String[] LANG_CODES = {"hi", "en", "ta", "te", "ml", "kn", "bn", "mr"};
-    static final String[] LANG_NAMES = {"Hindi", "English", "Tamil", "Telugu", "Malayalam", "Kannada", "Bengali", "Marathi"};
+    static final String[] LANG_CODES = {"en", "es", "fr", "de", "ja", "ko", "hi", "pt"};
+    static final String[] LANG_NAMES = {"English", "Spanish", "French", "German", "Japanese", "Korean", "Hindi", "Portuguese"};
 
     static final class Item {
         int id, providerId;
@@ -204,7 +210,11 @@ final class Suggestions {
     static Set<String> providers(Context c) {
         Set<String> def = new HashSet<>();
         for (Provider p : PROVIDERS) def.add(String.valueOf(p.id));
-        return new HashSet<>(prefs(c).getStringSet(K_PROVIDERS, def));
+        // A profile saved before the services changed keeps ids this build no longer offers; drop
+        // them, and fall back to every service rather than an empty carousel.
+        Set<String> out = new HashSet<>();
+        for (String id : prefs(c).getStringSet(K_PROVIDERS, def)) if (def.contains(id)) out.add(id);
+        return out.isEmpty() ? def : out;
     }
 
     static Set<String> languages(Context c) {
@@ -305,7 +315,7 @@ final class Suggestions {
             + " title originalReleaseYear shortDescription genres { shortName } backdrops { backdropUrl } scoring { imdbScore } }"
             + " offers(country: $country, platform: WEB) { standardWebURL package { technicalName } } } } } }";
 
-    /** What's popular in India per service, from JustWatch's public GraphQL endpoint (no key). */
+    /** What's popular in the US per service, from JustWatch's public GraphQL endpoint (no key). */
     static List<List<Item>> fetchJustWatch(Context c) throws Exception {
         String t = types(c);
         List<String> kinds = t.equals("both") ? Arrays.asList("tv", "movie") : Arrays.asList(t);
@@ -318,7 +328,7 @@ final class Suggestions {
                         .put("packages", new JSONArray().put(p.jwShort))
                         .put("objectTypes", new JSONArray().put(kind.equals("tv") ? "SHOW" : "MOVIE"))
                         .put("monetizationTypes", new JSONArray().put("FLATRATE").put("FREE").put("ADS"));
-                JSONObject vars = new JSONObject().put("country", "IN").put("language", "en")
+                JSONObject vars = new JSONObject().put("country", "US").put("language", "en")
                         .put("first", POOL).put("filter", filter);
                 JSONObject body = new JSONObject().put("query", JW_QUERY).put("variables", vars);
                 JSONObject res = post("https://apis.justwatch.com/graphql", body.toString());
@@ -454,8 +464,8 @@ final class Suggestions {
             if (!provs.contains(String.valueOf(p.id))) continue;
             for (String kind : kinds) {
                 StringBuilder q = new StringBuilder("/discover/").append(kind)
-                        .append("?watch_region=IN&with_watch_monetization_types=flatrate&sort_by=popularity.desc")
-                        .append("&language=en-IN&include_adult=false&with_watch_providers=").append(p.id);
+                        .append("?watch_region=US&with_watch_monetization_types=flatrate&sort_by=popularity.desc")
+                        .append("&language=en-US&include_adult=false&with_watch_providers=").append(p.id);
                 if (!langs.isEmpty()) q.append("&with_original_language=").append(URLEncoder.encode(String.join("|", langs), "UTF-8"));
                 JSONArray results = get(c, q.toString()).optJSONArray("results");
                 List<Item> list = new ArrayList<>();
@@ -655,11 +665,13 @@ final class Suggestions {
         }
         switch (p.id) {
             case 8: tries.add(view("https://www.netflix.com/search?q=" + enc, p.pkg)); break;
-            case 119: tries.add(view("https://www.primevideo.com/search/?phrase=" + enc, p.pkg)); break;
-            case 2336: tries.add(view("https://www.hotstar.com/in/search?q=" + enc, p.pkg)); break;
+            case 9: tries.add(view("https://www.primevideo.com/search/?phrase=" + enc, p.pkg)); break;
+            case 337: tries.add(view("https://www.disneyplus.com/search?q=" + enc, p.pkg)); break;
+            case 15: tries.add(view("https://www.hulu.com/search?q=" + enc, p.pkg)); break;
+            case 1899: tries.add(view("https://play.hbomax.com/search/result?q=" + enc, p.pkg)); break;
             case 350: tries.add(view("https://tv.apple.com/search?term=" + enc, p.pkg)); break;
-            case 232: tries.add(view("https://www.zee5.com/search?q=" + enc, p.pkg)); break;
-            case 237: tries.add(view("https://www.sonyliv.com/search?searchTerm=" + enc, p.pkg)); break;
+            case 386: tries.add(view("https://www.peacocktv.com/search?q=" + enc, p.pkg)); break;
+            case 531: tries.add(view("https://www.paramountplus.com/search/?q=" + enc, p.pkg)); break;
             default: break;
         }
         PackageManager pm = c.getPackageManager();

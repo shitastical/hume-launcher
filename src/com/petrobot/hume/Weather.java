@@ -495,7 +495,7 @@ final class Weather {
         return t + 0.33 * e - 0.70 * ws - 4.00;
     }
 
-    /** Start of the current hour in local time (half-hour time zones such as India included). */
+    /** Start of the current hour in local time (half-hour time zones such as Newfoundland's included). */
     static long localHourStart() {
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.MINUTE, 0);

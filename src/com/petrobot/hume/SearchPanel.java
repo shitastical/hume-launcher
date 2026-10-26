@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 /**
  * Search, as on tvOS: the Home Screen blurred behind, what you typed at the top, a one-row
  * keyboard, and rows of results under it. Apps, settings and inputs match on every key press with
- * no network; movies and series (JustWatch, any service in India, and Stremio) are fetched once
+ * no network; movies and series (JustWatch, any service in the US, and Stremio) are fetched once
  * typing pauses. OK on a title opens its "How to Watch" sheet with an Open / Get button per app.
  *
  * Geometry in design units (960 x 540, half of Apple's 1920 x 1080 points): 48 side margin as the
@@ -314,8 +314,8 @@ final class SearchPanel {
     Intent speechIntent() {
         return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
-                .putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", new String[]{"hi-IN"})
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                .putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", new String[]{"es-US"})
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, a.getPackageName())
@@ -892,7 +892,7 @@ final class SearchPanel {
         }
         if (buttons.isEmpty()) {
             TextView none = a.text(14, Ui.font(a, "regular"), 0.7f);
-            none.setText("Not streaming in India right now.");
+            none.setText("Not streaming in the US right now.");
             col.addView(none);
         }
         s.addView(col, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -905,7 +905,7 @@ final class SearchPanel {
         if (buttons.isEmpty()) s.requestFocus();
     }
 
-    /** [logo] Open in Prime Video ... Subscription, or Get JioHotstar for apps that aren't installed. */
+    /** [logo] Open in Prime Video ... Subscription, or Get Hulu for apps that aren't installed. */
     View offerButton(Search.Title t, Search.Offer o) {
         LinearLayout b = new LinearLayout(a);
         b.setOrientation(LinearLayout.HORIZONTAL);

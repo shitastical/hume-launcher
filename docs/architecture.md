@@ -16,13 +16,13 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 | `SetupActivity.java` | First-time setup pages (Apple-style, one question per page) |
 | `SettingsActivity.java` | All settings, tvOS list layout |
 | `Suggestions.java` | JustWatch / TMDB / Stremio (Cinemeta) recommendations: fetch, cache, artwork, deep links |
-| `Search.java` | Search data: JustWatch title search (every service in India) and Cinemeta, matching each service to its installed app, Open / Get, recent searches |
+| `Search.java` | Search data: JustWatch title search (every service in the US) and Cinemeta, matching each service to its installed app, Open / Get, recent searches |
 | `SearchPanel.java` | The search screen: one-row keyboard (English, digits, Hindi, voice), Apps & Settings and Movies & TV rows, the How to Watch sheet |
 | `MediaWatchService.java` | Notification listener → media sessions → Continue Watching store; DND access |
 | `Profiles.java` | Profiles (max 3), unique emoji avatars, per-profile storage names |
 | `SleepReceiver.java` | Sleep via device admin (or PowerService); sleep timer alarm |
 | `Inputs.java` | TV inputs from the TV input framework; switching via the passthrough channel URI |
-| `News.java` | News for the top shelf: Indian newsrooms' RSS (India, local city, world), images, freshness |
+| `News.java` | News for the top shelf: US newsrooms' RSS (national, local city, world), images, freshness |
 | `Perms.java` | On-screen permission and default-home requests, with adb only as a last resort |
 | `Weather.java` | Forecast from Open-Meteo, MET Norway or wttr.in (with fallback) in one format, IP location / city search, cache, refresh schedule |
 | `WeatherView.java`, `WeatherIcons.java` | Weather overview card and forecast panel (drawn in code), multicolour weather icons |
@@ -52,7 +52,7 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
   system-signature permission (verified: 0 rows readable), so the top shelf uses JustWatch/TMDB
   and Continue Watching uses published media sessions.
 
-- **Search without a list of services.** JustWatch says which services in India have a title and
+- **Search without a list of services.** JustWatch says which services in the US have a title and
   gives each one's links; Hume finds the app for each service itself (the package in the Android
   TV link, an installed non-browser handler of the web link, a remembered match, or an installed
   app with the same name), so new services need no update. Android 11+ hides other apps unless

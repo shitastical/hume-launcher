@@ -39,7 +39,7 @@ Key files (full map in **[docs/architecture.md](docs/architecture.md)**):
 | `MainActivity.java` | Home: dock/grid, focus, carousel, status row, Control Center, profiles UI, Liquid Glass, idle mode |
 | `SettingsActivity.java` | Settings pages |
 | `SetupActivity.java` | First-time setup pages |
-| `Suggestions.java`, `News.java` | Carousel content (JustWatch/TMDB/Stremio recommendations, Indian news RSS) |
+| `Suggestions.java`, `News.java` | Carousel content (JustWatch/TMDB/Stremio recommendations, US news RSS) |
 | `Search.java`, `SearchPanel.java` | Search: titles on every service with Open / Get, apps and settings; the search screen |
 | `MediaWatchService.java` | Continue Watching from media sessions |
 | `Weather*.java` | Weather data, pill and forecast panel, icons |
@@ -175,7 +175,7 @@ follow §6, code follows §3.
 ## 9. Good first areas
 
 - New weather icons (`WeatherIcons.java`) or connector icons (`Glyphs.java`).
-- More Indian city news feeds (`News.java`, `TOI_CITIES` and the city slugs).
+- More local city news feeds (`News.java` and the city → feed table).
 - More streaming services for recommendations (`Suggestions.java`, `PROVIDERS`).
 - Translations of setup and Settings text (no i18n yet — a good larger project).
 - Automated checks: a script that builds and lints, or JVM tests for the parsers (weather, news,

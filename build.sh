@@ -3,15 +3,21 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# JDK 17+ and the Android SDK (build-tools 34.0.0, platform android-34). Override with the usual
-# variables: JAVA_HOME, ANDROID_HOME (or ANDROID_SDK_ROOT).
+# JDK 17+ and the Android SDK (build-tools, platform android-34). Override with the usual
+# variables: JAVA_HOME, ANDROID_HOME (or ANDROID_SDK_ROOT), and BT_VERSION to pin build-tools.
 if [ -z "${JAVA_HOME:-}" ] && [ -d "$HOME/.local/jdk-17.0.20.1+1/Contents/Home" ]; then
     JAVA_HOME="$HOME/.local/jdk-17.0.20.1+1/Contents/Home"
 fi
 if [ -n "${JAVA_HOME:-}" ]; then export JAVA_HOME; export PATH="$JAVA_HOME/bin:$PATH"; fi
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 [ -d "$SDK" ] || SDK="$HOME/Android/Sdk"  # Linux default
-BT="$SDK/build-tools/34.0.0"
+BT="$SDK/build-tools/${BT_VERSION:-34.0.0}"  # BT_VERSION overrides; plain ./build.sh picks the newest installed
+# The d8 bundled with build-tools 34.0.0 (R8 8.2.2) crashes on JDK 21 class files, so when no
+# BT_VERSION is pinned we use the newest build-tools present that still has its own android.jar.
+if [ -z "${BT_VERSION:-}" ]; then
+    newest=$(ls -1 "$SDK/build-tools" 2>/dev/null | sort -V | tail -1 || true)
+    [ -n "$newest" ] && [ -x "$SDK/build-tools/$newest/d8" ] && BT="$SDK/build-tools/$newest"
+fi
 JAR="$SDK/platforms/android-34/android.jar"
 for f in "$BT/aapt2" "$BT/d8" "$JAR"; do
     [ -e "$f" ] || { echo "Missing $f — install build-tools 34.0.0 and platform android-34 (sdkmanager), or set ANDROID_HOME." >&2; exit 1; }

@@ -360,7 +360,7 @@ public class SettingsActivity extends Activity {
                 .setPositiveButton("Done", (d, w) -> {
                     Set<String> ids = new java.util.HashSet<>();
                     for (int i = 0; i < on.length; i++) if (on[i]) ids.add(News.SOURCES.get(i).id);
-                    if (ids.isEmpty()) ids.add("toi");
+                    if (ids.isEmpty()) ids.add("npr");
                     News.setSources(this, ids);
                     Suggestions.changed(this);
                     refreshAll();
@@ -547,7 +547,7 @@ public class SettingsActivity extends Activity {
         row("Hume Launcher", () -> "Version " + version(), () -> { });
         row("Made by", () -> "Petrobot", () -> { });
         row("Weather", () -> Weather.sourceName(Weather.source(this)), () -> { });
-        row("News", () -> News.sources(this).size() + " Indian newsrooms", () -> { });
+        row("News", () -> News.sources(this).size() + " US newsrooms", () -> { });
     }
 
     boolean screensaverAllowed() {

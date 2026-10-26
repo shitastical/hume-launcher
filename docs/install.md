@@ -10,7 +10,7 @@
 ## Build
 
 ```sh
-./build.sh                        # uses JDK 17 and Android build-tools 34
+./build.sh                        # uses JDK 17 and Android build-tools 34 or newer
 VERSION_CODE=62 VERSION_NAME=6.9 ./build.sh
 ```
 

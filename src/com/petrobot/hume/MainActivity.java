@@ -88,7 +88,7 @@ public class MainActivity extends Activity {
             "com.netflix.ninja",
             "com.amazon.amazonvideo.livingroom",
             "org.smarttube.stable",
-            "in.startv.hotstar",
+            "com.disney.disneyplus",
             "com.apple.atve.androidtv.appletv",
             "com.spotify.tv.android",
             "com.mitv.tvhome.mitvplus",
