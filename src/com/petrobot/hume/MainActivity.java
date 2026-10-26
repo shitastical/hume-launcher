@@ -150,6 +150,8 @@ public class MainActivity extends Activity {
     int heroIndex;
     boolean heroShown;          // carousel currently forms the background
     int heroVersion = -1;       // Suggestions.version() the items were loaded for
+    boolean fetchingHero;       // a refresh is already running
+    boolean heroRetry;          // a retry is already queued
     String wallStyle;
     /** What Liquid Glass samples: a blurred copy of the wallpaper or of the carousel artwork. */
     Bitmap wallBlur, heroBlur, glassBg;
@@ -1695,27 +1697,42 @@ public class MainActivity extends Activity {
             for (Suggestions.Item it : cwItems) sig.append(it.key).append(it.progress).append(';');
             boolean cwChanged = !sig.toString().equals(lastCwSig);
             lastCwSig = sig.toString();
+            // Stale is fine here: the carousel keeps what it has until the new stories are in, so
+            // changing a setting never empties the shelf while the feeds are being read.
             List<Suggestions.Item> base = shelf ? Suggestions.cached(this, true) : null;
             List<Suggestions.Item> mixed = mixContinue(base, cwItems);
             if (!mixed.isEmpty() && (reconfigured || cwChanged || heroItems.isEmpty())) {
                 handler.post(() -> setHeroItems(mixed));
-            } else if (mixed.isEmpty()) {
-                handler.post(() -> {
-                    heroItems = new ArrayList<>();
-                    shelfView.setFocusable(false);
-                    setHeroShown(false);
-                });
             }
-            if (shelf && Suggestions.cached(this, false) == null) {
-                try {
-                    List<Suggestions.Item> fresh = Suggestions.fetch(this);
-                    List<Suggestions.Item> m2 = mixContinue(fresh, cwItems);
-                    handler.post(() -> setHeroItems(m2));
-                } catch (Exception e) {
-                    android.util.Log.w("TvHome", "suggestions: " + e);
-                }
+            if (!shelf) return;
+            if (!reconfigured && Suggestions.cached(this, false) != null) return;
+            if (fetchingHero) return;
+            fetchingHero = true;
+            try {
+                List<Suggestions.Item> fresh = Suggestions.fetch(this);
+                List<Suggestions.Item> m2 = mixContinue(fresh, cwItems);
+                if (!m2.isEmpty()) handler.post(() -> setHeroItems(m2));
+                else handler.post(this::retryHeroSoon);
+            } catch (Exception e) {
+                android.util.Log.w("TvHome", "suggestions: " + e);
+                handler.post(this::retryHeroSoon);
+            } finally {
+                fetchingHero = false;
             }
         });
+    }
+
+    /**
+     * Nothing came back (no network, or every feed refused): try again in half a minute rather than
+     * leaving the shelf empty until the next scheduled refresh.
+     */
+    void retryHeroSoon() {
+        if (heroRetry) return;
+        heroRetry = true;
+        handler.postDelayed(() -> {
+            heroRetry = false;
+            if (heroItems.isEmpty()) loadHero();
+        }, 30000);
     }
 
     /** Resume first: up to six recent Continue Watching titles, then news and recommendations. */
@@ -1771,7 +1788,13 @@ public class MainActivity extends Activity {
         else for (int j = 0; j < heroDots.getChildCount(); j++) heroDots.getChildAt(j).setAlpha(j == keep ? 1f : 0.35f);
         List<Suggestions.Item> pre = items;
         io.execute(() -> {
+            int stories = 0;
             for (Suggestions.Item it : pre) {
+                if ("news".equals(it.type)) {
+                    // Resolve the sharpest copy and download it, so the story is ready to show.
+                    if (stories++ < 8) Suggestions.imageHd(this, it, Math.min(1280, screenW));
+                    continue;
+                }
                 Suggestions.image(this, it.backdrop, "w1280", 64);  // downloads to disk; tiny decode
                 Suggestions.logoFor(this, it);
             }
@@ -1823,7 +1846,9 @@ public class MainActivity extends Activity {
         }
         int want = index;
         io.execute(() -> {
-            Bitmap raw = Suggestions.image(this, it.backdrop, "w1280", Math.min(1280, screenW));
+            Bitmap raw = "news".equals(it.type)
+                    ? Suggestions.imageHd(this, it, Math.min(1280, screenW))
+                    : Suggestions.image(this, it.backdrop, "w1280", Math.min(1280, screenW));
             Bitmap bd = "news".equals(it.type) ? bakeNews(raw) : bakeScrims(raw);
             Bitmap bdBlur = Ui.glassBackdrop(bd, 160, 90);
             String logoPath = Suggestions.logoFor(this, it);

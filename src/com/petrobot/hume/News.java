@@ -20,6 +20,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * News for the top shelf from newsrooms' RSS feeds, which carry a large image per story
@@ -30,8 +36,10 @@ import java.util.Set;
  *
  * <p>Images are taken from {@code media:content}/{@code media:thumbnail}/{@code enclosure}, or from
  * an {@code <img>} in the summary or the full body ({@code content:encoded}) \u2014 NPR and most
- * WordPress-based newsrooms only publish theirs in the body, so both are checked. A story with no
- * image is skipped, because the carousel is picture-driven.
+ * WordPress-based newsrooms only publish theirs in the body, so both are checked. Every copy a
+ * story offers is kept, biggest first, so {@link Art} can show the sharpest one instead of the
+ * small thumbnail many feeds list first. A story with no image is skipped, because the carousel is
+ * picture-driven.
  */
 final class News {
     static final String K_SOURCES = "news_sources";
@@ -301,9 +309,32 @@ final class News {
         p.edit().putStringSet(K_SOURCES, ids).apply();
     }
 
-    /** Latest stories: national, local and world mixed together, alternating between newsrooms. */
+    /** Feeds are read in parallel; this long, then whatever has arrived is used. */
+    private static final long DEADLINE_MS = 14000;
+    private static final String UA = "Mozilla/5.0 (Linux; Android TV) HumeLauncher";
+
+    /** One feed to read: its URL, the label stories from it get, and how old a story may be. */
+    private static final class Feed {
+        final String url, label;
+        final long maxAge;
+
+        Feed(String url, String label, long maxAge) {
+            this.url = url;
+            this.label = label;
+            this.maxAge = maxAge;
+        }
+    }
+
+    /**
+     * Latest stories: national, local and world mixed together, alternating between newsrooms.
+     *
+     * <p>Every feed is read at the same time and the whole pass has one deadline, so a newsroom
+     * that is slow or down costs its own stories rather than the whole shelf: the others still land
+     * well inside it. Never throws, and never waits longer than {@link #DEADLINE_MS}.
+     */
     static List<Suggestions.Item> fetch(Context c, int max) {
-        List<List<Suggestions.Item>> lists = new ArrayList<>();
+        if (max < 1) max = 1;
+        List<Feed> feeds = new ArrayList<>();
         Set<String> chosen = sources(c);
         String city = city(c);
         for (String sec : SECTIONS) {
@@ -314,15 +345,8 @@ final class News {
                 if (locals == null) locals = STATE_FEEDS.get(st);
                 if (locals == null) continue;
                 String where = own ? (st.isEmpty() ? city : city + ", " + st) : stateName(st);
-                for (Local l : locals) {
-                    try {
-                        // local news moves slower than national
-                        List<Suggestions.Item> got = read(l.url, where + "  \u00b7  " + l.name, 7 * 86400000L);
-                        if (!got.isEmpty()) lists.add(got);
-                    } catch (Exception e) {
-                        Log.w("TvHome", "local news " + l.url + ": " + e);
-                    }
-                }
+                // local news moves slower than national
+                for (Local l : locals) feeds.add(new Feed(l.url, where + "  \u00b7  " + l.name, 7 * 86400000L));
                 continue;
             }
             for (Source s : SOURCES) {
@@ -330,14 +354,31 @@ final class News {
                 String url = sec.equals(NATIONAL) ? s.national : s.world;
                 if (url == null) continue;
                 String label = (sec.equals(WORLD) ? "World" : "U.S.") + "  \u00b7  " + s.name;
-                try {
-                    List<Suggestions.Item> got = read(url, label, 2 * 86400000L);
-                    if (!got.isEmpty()) lists.add(got);
-                } catch (Exception e) {
-                    Log.w("TvHome", "news feed " + url + ": " + e);
-                }
+                feeds.add(new Feed(url, label, 2 * 86400000L));
             }
         }
+        if (feeds.isEmpty()) return new ArrayList<>();
+
+        List<List<Suggestions.Item>> lists = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(6, feeds.size()));
+        try {
+            List<Future<List<Suggestions.Item>>> pending = new ArrayList<>();
+            for (Feed f : feeds) pending.add(pool.submit(() -> read(f.url, f.label, f.maxAge)));
+            long deadline = System.currentTimeMillis() + DEADLINE_MS;
+            for (int i = 0; i < pending.size(); i++) {
+                long left = deadline - System.currentTimeMillis();
+                try {
+                    List<Suggestions.Item> got = pending.get(i).get(Math.max(1, left), TimeUnit.MILLISECONDS);
+                    if (got != null && !got.isEmpty()) lists.add(got);
+                } catch (Exception e) {
+                    pending.get(i).cancel(true);
+                    Log.w("TvHome", "news feed " + feeds.get(i).url + ": " + e);
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
         List<Suggestions.Item> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (int round = 0; out.size() < max; round++) {
@@ -346,26 +387,30 @@ final class News {
                 if (round < l.size()) {
                     any = true;
                     Suggestions.Item it = l.get(round);
-                    if (out.size() < max && seen.add(it.title.toLowerCase(Locale.ROOT))) out.add(it);
+                    String key = it.title.toLowerCase(Locale.ROOT) + " " + it.link;
+                    if (out.size() < max && seen.add(key)) out.add(it);
                 }
             }
             if (!any) break;
         }
+        Log.i("TvHome", "news: " + lists.size() + "/" + feeds.size() + " feeds, " + out.size() + " stories");
         return out;
     }
 
     private static List<Suggestions.Item> read(String url, String label, long maxAge) throws Exception {
         HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-        con.setConnectTimeout(8000);
-        con.setReadTimeout(12000);
-        con.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android TV) HumeLauncher");
+        con.setConnectTimeout(5000);
+        con.setReadTimeout(9000);
+        con.setRequestProperty("User-Agent", UA);
         List<Suggestions.Item> out = new ArrayList<>();
         try (InputStream in = con.getInputStream()) {
             XmlPullParser x = XmlPullParserFactory.newInstance().newPullParser();
             x.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
             x.setInput(in, null);
             Suggestions.Item cur = null;
-            String tag = null, rawDesc = "", rawBody = "";
+            String tag = null;
+            List<String> pics = new ArrayList<>();
+            Map<String, Integer> sizes = new HashMap<>();
             int seenItems = 0;
             for (int ev = x.getEventType(); ev != XmlPullParser.END_DOCUMENT && out.size() < 30 && seenItems < 80; ev = x.next()) {
                 if (ev == XmlPullParser.START_TAG) {
@@ -377,20 +422,22 @@ final class News {
                         cur.title = cur.overview = cur.backdrop = cur.year = "";
                         cur.genres = label;
                         cur.logo = "";
-                        rawDesc = "";
-                        rawBody = "";
+                        pics.clear();
+                        sizes.clear();
                     } else if (cur != null && (tag.equals("media:content") || tag.equals("media:thumbnail") || tag.equals("enclosure"))) {
                         String u = x.getAttributeValue(null, "url");
                         String type = x.getAttributeValue(null, "type");
-                        if (u != null && (type == null || type.startsWith("image")) && cur.backdrop.isEmpty()) cur.backdrop = bigger(u);
+                        if (picture(u, type)) {
+                            picture(pics, sizes, u, intOf(x.getAttributeValue(null, "width")));
+                        }
                     }
                 } else if (ev == XmlPullParser.TEXT && cur != null && tag != null) {
                     String t = x.getText();
                     switch (tag) {
                         case "title": cur.title += t; break;
                         case "link": cur.link += t.trim(); break;
-                        case "description": cur.overview += t; rawDesc += t; break;
-                        case "content:encoded": rawBody += t; break;
+                        case "description": cur.overview += t; imagesFrom(t, pics, sizes); break;
+                        case "content:encoded": imagesFrom(t, pics, sizes); break;
                         case "pubDate": cur.published = parseDate(t.trim()); break;
                         default: break;
                     }
@@ -398,11 +445,11 @@ final class News {
                     if (x.getName().equals("item") && cur != null) {
                         cur.title = clean(cur.title);
                         cur.overview = clean(cur.overview);
-                        if (cur.backdrop.isEmpty()) {  // many newsrooms only put the image in the body
-                            String img = firstImage(rawDesc);
-                            if (img == null) img = firstImage(rawBody);
-                            if (img != null) cur.backdrop = bigger(img);
-                        }
+                        // Every copy the feed offered, biggest first: the carousel picks the sharpest
+                        // one (Art.java) instead of drawing whichever thumbnail happened to come first.
+                        pics.sort((a, b) -> Integer.compare(sizes.getOrDefault(b, 0), sizes.getOrDefault(a, 0)));
+                        for (String u : pics) if (cur.imgs.size() < 6) cur.imgs.add(u);
+                        if (!cur.imgs.isEmpty()) cur.backdrop = cur.imgs.get(0);
                         boolean fresh = cur.published == 0 || System.currentTimeMillis() - cur.published < maxAge;
                         if (!cur.title.isEmpty() && !cur.backdrop.isEmpty() && fresh) out.add(cur);
                         cur = null;
@@ -417,23 +464,89 @@ final class News {
         return out.size() > 8 ? new ArrayList<>(out.subList(0, 8)) : out;
     }
 
-    /** First {@code <img src>} in a chunk of HTML, with the common entities decoded. */
-    private static String firstImage(String html) {
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("<img[^>]+src=[\"']([^\"']+)[\"']", java.util.regex.Pattern.CASE_INSENSITIVE)
-                .matcher(html);
-        if (!m.find()) return null;
-        return m.group(1).replace("&amp;", "&");
+    /** Whether a feed entry points at a picture (media:content may also carry video and audio). */
+    private static boolean picture(String url, String type) {
+        if (url == null || url.isEmpty()) return false;
+        if (type != null && !type.isEmpty()) return type.startsWith("image");
+        String u = url.toLowerCase(Locale.ROOT);
+        for (String bad : new String[]{".m3u8", ".mp4", ".m4v", ".webm", ".mp3", ".m4a", ".aac", ".json"}) {
+            if (u.contains(bad)) return false;
+        }
+        return true;
     }
 
-    /** Ask for a larger rendition where the newsroom's image URLs allow it. */
-    private static String bigger(String u) {
-        u = u.replaceAll("/LANDSCAPE_\\d+/", "/LANDSCAPE_1200/");
-        // WordPress serves resized copies as name-1024x576.jpg; the original is there without the size
-        if (u.contains("/wp-content/uploads/")) {
-            u = u.replaceFirst("-\\d+x\\d+(\\.[a-zA-Z]+)(\\?.*)?$", "$1");
+    /** Records one picture with the size its URL or markup claims, keeping the biggest claim. */
+    private static void picture(List<String> pics, Map<String, Integer> sizes, String url, int width) {
+        if (url == null) return;
+        url = url.trim().replace("&amp;", "&");
+        if (url.isEmpty() || !picture(url, null)) return;
+        if (url.startsWith("//")) url = "https:" + url;
+        int w = Math.max(width, estimate(url));
+        Integer had = sizes.get(url);
+        if (had == null) pics.add(url);
+        sizes.put(url, had == null ? w : Math.max(had, w));
+    }
+
+    /** Every {@code <img>} in a chunk of HTML, with its {@code srcset} widths when it has them. */
+    private static void imagesFrom(String html, List<String> pics, Map<String, Integer> sizes) {
+        Matcher m = IMG.matcher(html);
+        while (m.find()) {
+            String tag = m.group();
+            String set = attr(tag, "srcset");
+            if (set != null) {
+                for (String part : set.split(",")) {
+                    String[] bits = part.trim().split("\\s+");
+                    if (bits.length == 0) continue;
+                    int w = bits.length > 1 && bits[1].endsWith("w")
+                            ? intOf(bits[1].substring(0, bits[1].length() - 1)) : 0;
+                    picture(pics, sizes, bits[0], w);
+                }
+            }
+            String src = attr(tag, "src");
+            if (src != null) picture(pics, sizes, src, 0);
         }
-        return u;
+    }
+
+    /** A rough width for an image URL, read from the size its path or query spells out. */
+    static int estimate(String url) {
+        int best = 0;
+        for (Pattern p : HINTS) {
+            Matcher m = p.matcher(url);
+            while (m.find()) {
+                for (int g = 1; g <= m.groupCount(); g++) {
+                    String v = m.group(g);
+                    if (v == null || v.length() < 3) continue;
+                    int w = intOf(v);
+                    if (w > best && w <= 8000) best = w;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static final Pattern IMG = Pattern.compile("(?is)<img\\b[^>]*>");
+    private static final Pattern[] HINTS = {
+            Pattern.compile("(?i)[-_](\\d{2,5})x(\\d{2,5})\\."),
+            Pattern.compile("(?i)/resize/(\\d{2,5})x"),
+            Pattern.compile("(?i)[?&](?:w|width)=(\\d{2,5})"),
+            Pattern.compile("(?i)t_fit_(\\d{2,5})w"),
+            Pattern.compile("(?i)/(?:ace/standard|ace/cps|standard|news|img)/(\\d{2,5})/"),
+            Pattern.compile("(?i)/master/(\\d{2,5})\\."),
+    };
+
+    /** One attribute of an HTML tag, decoded. */
+    static String attr(String tag, String name) {
+        Matcher m = Pattern.compile("(?is)\\b" + name + "\\s*=\\s*[\"']([^\"']*)[\"']").matcher(tag);
+        return m.find() ? m.group(1).replace("&amp;", "&") : null;
+    }
+
+    private static int intOf(String s) {
+        if (s == null) return 0;
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** Strip tags and entities; keep one short paragraph. */

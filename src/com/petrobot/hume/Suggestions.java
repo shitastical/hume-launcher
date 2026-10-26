@@ -97,6 +97,8 @@ final class Suggestions {
         String type, title, overview, backdrop, logo, year, genres;
         /** Exact title page on the service (JustWatch), opened directly in the app when it supports it. */
         String link = "";
+        /** News: every image the story offered, biggest first, so the sharpest copy can be chosen. */
+        List<String> imgs = new ArrayList<>();
         /** Continue Watching entries: the app that played it, its store key, and progress. */
         String pkg = "", key = "";
         float progress = -1f;
@@ -109,7 +111,7 @@ final class Suggestions {
             return new JSONObject().put("id", id).put("providerId", providerId).put("type", type)
                     .put("title", title).put("overview", overview).put("backdrop", backdrop)
                     .put("logo", logo == null ? "" : logo).put("year", year).put("genres", genres).put("rating", rating)
-                    .put("link", link).put("pub", published);
+                    .put("link", link).put("pub", published).put("imgs", new JSONArray(imgs));
         }
 
         static Item fromJson(JSONObject o) {
@@ -127,6 +129,11 @@ final class Suggestions {
             i.rating = o.optDouble("rating", 0);
             i.link = o.optString("link");
             i.published = o.optLong("pub");
+            JSONArray imgs = o.optJSONArray("imgs");
+            for (int k = 0; imgs != null && k < imgs.length(); k++) {
+                String u = imgs.optString(k);
+                if (u != null && !u.isEmpty()) i.imgs.add(u);
+            }
             return i;
         }
 
@@ -225,11 +232,14 @@ final class Suggestions {
         return prefs(c).getInt(K_ADVANCE, 8);
     }
 
-    /** Bumped on every settings change so the home screen knows to refetch. */
+    /**
+     * Bumped on every settings change so the home screen knows to refetch. The cache is kept: the
+     * carousel keeps showing the last good stories until the new ones arrive, instead of going
+     * blank every time a setting is touched.
+     */
     static void changed(Context c) {
         SharedPreferences p = prefs(c);
         p.edit().putInt(K_VERSION, p.getInt(K_VERSION, 0) + 1).apply();
-        cacheFile(c).delete();
     }
 
     static int version(Context c) {
@@ -278,7 +288,14 @@ final class Suggestions {
             if (i < news.size()) out.add(news.get(i));
         }
         android.util.Log.i("TvHome", "top shelf: " + recs.size() + " recommendations, " + news.size() + " news");
-        if (out.isEmpty() && err != null) throw err;
+        if (out.isEmpty()) {
+            // Nothing came back (feeds down, no connection). Keep what is already on screen rather
+            // than caching an empty shelf, which would blank the carousel until the next refresh.
+            List<Item> old = cached(c, true);
+            if (old != null) return old;
+            if (err != null) throw err;
+            return out;
+        }
         JSONArray a = new JSONArray();
         for (Item it : out) a.put(it.toJson());
         try (OutputStream os = new FileOutputStream(cacheFile(c))) {
@@ -572,43 +589,69 @@ final class Suggestions {
     /** TMDB image, cached on disk, decoded no larger than maxWidth (the box has little RAM). */
     static Bitmap image(Context c, String path, String size, int maxWidth) {
         if (path == null || path.isEmpty()) return null;
+        File f = artFile(c, path, size);
+        if (f == null) return null;
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(f.getPath(), o);
+        if (o.outWidth <= 0) return null;  // not a picture we can decode (AVIF and friends)
+        o.inSampleSize = 1;
+        while (maxWidth > 0 && o.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
+        o.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(f.getPath(), o);
+    }
+
+    /**
+     * A news story's picture at the sharpest rendition its publisher offers.
+     *
+     * <p>The rendition is always chosen for {@link Art#TARGET} and the result decoded no wider than
+     * {@code maxWidth}: a caller asking for a small copy (a prefetch, say) must not end up pinning
+     * the story to a thumbnail.
+     */
+    static Bitmap imageHd(Context c, Item it, int maxWidth) {
+        if (it == null) return null;
+        String url = Art.best(c, it, Art.TARGET);
+        return url == null ? null : image(c, url, "orig", maxWidth);
+    }
+
+    /**
+     * An image on disk: local artwork as-is, a TMDB path by size, or a publisher's URL. Downloaded
+     * once; a failed or unusable download leaves nothing behind, so it can be retried later.
+     */
+    static File artFile(Context c, String path, String size) {
+        if (path == null || path.isEmpty()) return null;
         if (path.startsWith("/")) {  // local artwork (Continue Watching)
-            BitmapFactory.Options o = new BitmapFactory.Options();
-            o.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(path, o);
-            o.inSampleSize = 1;
-            while (o.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
-            o.inJustDecodeBounds = false;
-            return BitmapFactory.decodeFile(path, o);
+            File local = new File(path);
+            return local.exists() ? local : null;
         }
         try {
             File dir = new File(c.getCacheDir(), "tmdb");
             dir.mkdirs();
             boolean abs = path.startsWith("http");
             File f = new File(dir, (abs ? "u" + Integer.toHexString(path.hashCode()) : size + "_" + path.replace("/", "")) + ".img");
-            if (!f.exists()) {
-                HttpURLConnection con = (HttpURLConnection) new URL(abs ? path : "https://image.tmdb.org/t/p/" + size + path).openConnection();
-                con.setConnectTimeout(8000);
-                con.setReadTimeout(15000);
-                try {
-                    if (con.getResponseCode() != 200) return null;
-                    byte[] data = readAll(con.getInputStream());
-                    File tmp = new File(dir, f.getName() + ".part");
-                    try (OutputStream os = new FileOutputStream(tmp)) {
-                        os.write(data);
-                    }
-                    tmp.renameTo(f);
-                } finally {
-                    con.disconnect();
+            if (f.exists() && f.length() > 0) return f;
+            String url = abs ? path : "https://image.tmdb.org/t/p/" + size + path;
+            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+            con.setConnectTimeout(6000);
+            con.setReadTimeout(15000);
+            con.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android TV) HumeLauncher");
+            con.setRequestProperty("Accept", "image/*");
+            try {
+                if (con.getResponseCode() != 200) return null;
+                byte[] data = readAll(con.getInputStream());
+                if (data.length == 0) return null;
+                File tmp = new File(dir, f.getName() + ".part");
+                try (OutputStream os = new FileOutputStream(tmp)) {
+                    os.write(data);
                 }
+                if (!tmp.renameTo(f)) {
+                    tmp.delete();
+                    return null;
+                }
+            } finally {
+                con.disconnect();
             }
-            BitmapFactory.Options o = new BitmapFactory.Options();
-            o.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(f.getPath(), o);
-            o.inSampleSize = 1;
-            while (o.outWidth / (o.inSampleSize * 2) >= maxWidth) o.inSampleSize *= 2;
-            o.inJustDecodeBounds = false;
-            return BitmapFactory.decodeFile(f.getPath(), o);
+            return f;
         } catch (Exception e) {
             return null;
         }

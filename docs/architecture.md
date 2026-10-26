@@ -22,7 +22,8 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 | `Profiles.java` | Profiles (max 3), unique emoji avatars, per-profile storage names |
 | `SleepReceiver.java` | Sleep via device admin (or PowerService); sleep timer alarm |
 | `Inputs.java` | TV inputs from the TV input framework; switching via the passthrough channel URI |
-| `News.java` | News for the top shelf: US newsrooms' RSS (national, world, and local for every state and DC or a city with its own newsrooms), images, freshness |
+| `News.java` | News for the top shelf: US newsrooms' RSS (national, world, and local for every state and DC or a city with its own newsrooms), read in parallel under one deadline, every image a story offers, freshness |
+| `Art.java` | The sharpest rendition of a story's picture: ranked candidates, CDN size upgrades, `og:image` fallback, measured width, remembered answers |
 | `Perms.java` | On-screen permission and default-home requests, with adb only as a last resort |
 | `Weather.java` | Forecast from Open-Meteo, MET Norway or wttr.in (with fallback) in one format, IP location / city search, cache, refresh schedule |
 | `WeatherView.java`, `WeatherIcons.java` | Weather overview card and forecast panel (drawn in code), multicolour weather icons |
@@ -51,6 +52,12 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 - **Recommendations without system access.** Android's preview/Watch Next rows need a
   system-signature permission (verified: 0 rows readable), so the top shelf uses JustWatch/TMDB
   and Continue Watching uses published media sessions.
+
+- **Sharp news pictures without guessing.** A feed's `media:content` width lies as often as not
+  and many newsrooms omit it entirely, so the candidate renditions are downloaded and measured
+  (`BitmapFactory` bounds only) rather than trusted: one candidate at a time, biggest first, and
+  the first true 1280 px copy wins. Answers are memoised in `art_v2.json` because measuring costs
+  a download.
 
 - **Search without a list of services.** JustWatch says which services in the US have a title and
   gives each one's links; Hume finds the app for each service itself (the package in the Android

@@ -13,7 +13,8 @@ runtime libraries; the APK is about 1 MB.
   zoom-to-open, More Apps folder, five backgrounds.
 - **Carousel**: Continue Watching first (Resume / Remove, expires after 7 days), then US news
   (national, your state, world) and rotating recommendations from your streaming services. Goes
-  full screen when Home is idle.
+  full screen when Home is idle. Story artwork is shown at full dock width — the sharpest copy each
+  publisher offers, never a feed thumbnail — and the shelf keeps its stories up while it refetches.
 - **Status row**: internet indicator, time, Refresh, Search, Control Center, profile avatar.
 - **Search**: apps, settings and inputs instantly, plus movies and shows on every streaming service
   in the US (typed in English, Spanish or Hindi, or spoken) with **Open** in the app

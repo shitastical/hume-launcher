@@ -376,6 +376,11 @@ public class SettingsActivity extends Activity {
         }).show();
     }
 
+    /**
+     * Newsrooms are switched on and off right where they are ticked, so there is only one button:
+     * Down from the last newsroom lands on Done, never on a Cancel that silently throws the
+     * selection away.
+     */
     void chooseNewsrooms() {
         String[] names = new String[News.SOURCES.size()];
         boolean[] on = new boolean[names.length];
@@ -384,15 +389,18 @@ public class SettingsActivity extends Activity {
             names[i] = News.SOURCES.get(i).name;
             on[i] = cur.contains(News.SOURCES.get(i).id);
         }
-        dialog("Newsrooms").setMultiChoiceItems(names, on, (d, w, checked) -> on[w] = checked)
-                .setPositiveButton("Done", (d, w) -> {
+        dialog("Newsrooms")
+                .setMultiChoiceItems(names, on, (d, w, checked) -> {
+                    on[w] = checked;
                     Set<String> ids = new java.util.HashSet<>();
                     for (int i = 0; i < on.length; i++) if (on[i]) ids.add(News.SOURCES.get(i).id);
-                    if (ids.isEmpty()) ids.add("npr");
+                    if (ids.isEmpty()) ids.add("npr");  // never leave the shelf with no US news
                     News.setSources(this, ids);
                     Suggestions.changed(this);
                     refreshAll();
-                }).setNegativeButton("Cancel", null).show();
+                })
+                .setPositiveButton("Done", null)
+                .show();
     }
 
     void pagePresentation() {

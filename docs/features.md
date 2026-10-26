@@ -142,6 +142,17 @@ Full-screen artwork behind the dock while a dock app is focused. One carousel ho
   News, NBC News, The Guardian US, BBC US and Politico by default (The Hill optional). An editorial
   layout made for reading: headline, summary, section, newsroom and age; no button. Updates every
   30 minutes (15/30/60).
+- **Sharp pictures always**: feeds list whatever size their CMS generated, often the smallest copy
+  first (ABC's is 384 px wide, the BBC's 240). Every picture a story offers is kept, and the
+  launcher asks each publisher's CDN for a bigger rendition where it allows one (WordPress,
+  Nexstar, TEGNA, NBC, BBC, ABC), measures what comes back, and shows the first copy at least
+  1280 px wide — with the story page's own share image (`og:image`) as the fallback when the feed
+  only has thumbnails. Signed URLs are fetched exactly as published. Results are remembered, so a
+  story is resolved once.
+- **Never blank**: all feeds are read at the same time under one 14-second deadline, so a slow
+  newsroom costs its own stories, not the shelf. Changing a setting or a newsroom re-reads the
+  feeds while the stories already on screen stay up, and an empty result is retried in 30 seconds
+  instead of replacing the carousel.
 - **Local**: the state comes from the weather location (the city you chose, or the one found from
   your internet connection), so local news works anywhere in the US. All **50 states and DC** have
   statewide coverage and their biggest newsrooms (nonprofit statehouse outlets such as the Ohio
@@ -150,6 +161,9 @@ Full-screen artwork behind the dock while a dock app is focused. One carousel ho
   WYTV Youngstown, Toledo Blade, Signal Cleveland, WFAA Dallas, KARE 11 Minneapolis and more.
   Settings → Top Shelf → **Local news state** overrides the state (or follows the location again);
   **Local newsrooms** shows how many that state brings.
+- **Newsrooms** (Settings → Top Shelf → Newsrooms) are switched on and off where they are ticked,
+  with a single **Done**; the shelf updates behind the dialog, and at least one newsroom always
+  stays on.
 - Each profile chooses what it shows (Settings → Top Shelf / Continue Watching, or setup).
 
 ## Idle full-screen carousel
