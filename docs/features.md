@@ -230,10 +230,22 @@ loop, optionally starting with the TV (signage). See **[presentation.md](present
 
 ## Screensaver
 
-Hume never holds the screen on, so the TV's own screensaver (e.g. Aerial Views) starts after the
-TV's timeout. Settings → Home → **Screensaver on Home**: *System screensaver* (default) or *Hume
-full-screen carousel*, which keeps the screen on and lets the carousel play instead. Also shows the
-TV's screensaver (opens its settings or app) and **Start screensaver now**.
+The screensaver is **[Aerial Views](https://github.com/theothernt/AerialViews)**, the free,
+open-source video screensaver inspired by Apple TV: 4K videos from Apple, Amazon and others, or
+your own photos and videos. Hume has no screensaver of its own any more — a launcher holding the
+screen awake can only stop a real screensaver from starting.
+
+Settings → Home → **Screensaver** makes Aerial Views the TV's screensaver (or hands the job back to
+the TV's own), **Start screensaver now** begins it immediately, and **Aerial Views settings** opens
+its video source, overlays and playlist options. Choosing the screensaver writes the TV's
+`screensaver_components` setting, which Android guards with `WRITE_SECURE_SETTINGS`; TVs without a
+screen for it ask for the one-time command:
+
+```sh
+adb shell pm grant com.petrobot.hume android.permission.WRITE_SECURE_SETTINGS
+```
+
+Until then the TV's own screensaver setting decides (Settings → Device Preferences → Screen saver).
 
 ## AirPlay (with the AirPlay Server app)
 

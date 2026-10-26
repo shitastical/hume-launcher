@@ -32,7 +32,8 @@ been reworked around sharp artwork that never disappears. What changed, in detai
 - **Presentation mode**: send images, videos and webpages from a browser and loop them full screen;
   can start with the TV (signage).
 - **First-time setup** in Apple's style, **multi-page Settings**, permissions asked **on screen**
-  (adb only as a last resort), system or carousel **screensaver**, and Android TV navigation sounds.
+  (adb only as a last resort), an **Aerial Views screensaver** that Settings can switch on in one
+  press, and Android TV navigation sounds.
 - **AirPlay**: works with the open-source [AirPlay Server](https://github.com/jqssun/android-airplay-server)
   app; Hume keeps the receiver visible to Macs and iPhones after the TV sleeps.
 
@@ -41,7 +42,7 @@ Full list with screenshots: **[docs/features.md](docs/features.md)**.
 ## What this fork changes
 
 Upstream ships aimed at India. This fork retargets everything to the US and fixes the carousel, in
-three releases (7.7 → 7.9). Nothing here is a setting: these are the defaults, and every profile
+four releases (7.7 → 8.0). Nothing here is a setting: these are the defaults, and every profile
 gets them.
 
 ### 7.7 — The US instead of India
@@ -104,11 +105,26 @@ gets them.
 - **Docs** updated throughout: `docs/features.md` (carousel, newsrooms, local states),
   `docs/architecture.md` (the new `Art.java`, and why widths are measured rather than trusted).
 
+### 8.0 — Aerial Views instead of a built-in screensaver
+
+- Hume's own screensaver is gone. It could only ever be the launcher holding the screen awake and
+  playing its carousel, which is worse at the job than a real video screensaver and blocked the
+  TV's own from starting.
+- The screensaver is now **[Aerial Views](https://github.com/theothernt/AerialViews)** (free, open
+  source, 4K): Settings → Home → **Screensaver** makes it the TV's screensaver, **Start screensaver
+  now** begins it, and **Aerial Views settings** opens its video sources, overlays and playlist.
+  Setting it writes the TV's `screensaver_components`, so the launcher asks for
+  `WRITE_SECURE_SETTINGS` once — the same on-screen/adb-last-resort path as every other permission
+  no TV has a switch for.
+- Home no longer holds the screen on, at all, so whichever screensaver the TV is set to starts when
+  it should.
+
 ## Releases
 
 | Version | What it is |
 |---|---|
-| **7.9** | Sharp news artwork (≥1280 px, `og:image` fallback), parallel feeds with a deadline, a shelf that keeps its stories, newsroom ticks that apply immediately |
+| **8.0** | Aerial Views as the screensaver; no launcher screensaver, and Home never holds the screen on |
+| 7.9 | Sharp news artwork (≥1280 px, `og:image` fallback), parallel feeds with a deadline, a shelf that keeps its stories, newsroom ticks that apply immediately |
 | 7.8 | Local news for all 50 states and DC, driven by the weather location, with a state override |
 | 7.7 | US news, US streaming services, US search region and locale instead of India |
 | 7.6 | Search across apps and every streaming service, Stremio recommendations (upstream) |
@@ -117,7 +133,7 @@ gets them.
 
 ```sh
 # needs JDK 17+ and Android SDK build-tools 34.0.0 + platform android-34 (see getting started)
-VERSION_CODE=106 VERSION_NAME=7.9 ./build.sh   # → build/tvos-home.apk
+VERSION_CODE=107 VERSION_NAME=8.0 ./build.sh   # → build/tvos-home.apk
 adb connect <tv-ip>:5555
 adb install -r build/tvos-home.apk
 adb shell am start -n com.petrobot.hume/.MainActivity
