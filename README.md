@@ -5,6 +5,11 @@ modelled on Apple TV — glass dock, full-screen carousel, Control Center, profi
 stay smooth on low-end TV boxes like the Xiaomi Mi Box. Plain Java, no Gradle, no third-party
 runtime libraries; the APK is about 1 MB.
 
+This is the **US fork** of [petrobot-admin/hume-launcher](https://github.com/petrobot-admin/hume-launcher):
+news, streaming services, search and locale are American rather than Indian, and the carousel has
+been reworked around sharp artwork that never disappears. What changed, in detail, is
+[below](#what-this-fork-changes).
+
 ![Home screen](docs/images/home-dock-glass.jpg)
 
 ## Features
@@ -33,11 +38,86 @@ runtime libraries; the APK is about 1 MB.
 
 Full list with screenshots: **[docs/features.md](docs/features.md)**.
 
+## What this fork changes
+
+Upstream ships aimed at India. This fork retargets everything to the US and fixes the carousel, in
+three releases (7.7 → 7.9). Nothing here is a setting: these are the defaults, and every profile
+gets them.
+
+### 7.7 — The US instead of India
+
+- **News**: Indian newsroom RSS feeds are replaced by US ones — NPR, ABC News, NBC News, The
+  Guardian US, BBC US, Politico and (optional) The Hill, each with a national and a world section.
+  Local coverage moved to US metros (10TV Columbus, WKYC Cleveland, Fox 8, WDTN Dayton, WKBN,
+  WYTV Youngstown, cleveland.com, NBC4, Signal Cleveland, Toledo Blade, Ohio Capital Journal).
+- **Lost stories fixed**: NPR and WordPress-based newsrooms put their picture in
+  `<content:encoded>`, which the parser never read, so fresh stories from those feeds were dropped
+  entirely. It reads it now — which also fixes WordPress feeds generally — alongside `media:content`,
+  `media:thumbnail` and `enclosure`.
+- **Recommendations**: "popular in India" becomes "popular in the US", over the services Americans
+  have: Netflix, Prime Video, Disney+, Hulu, HBO Max, Apple TV, Peacock, Paramount+.
+- **Service identifiers corrected**: JustWatch's package names were read off its own offer data
+  rather than guessed — in the US, Prime Video is `amazonprime`/`amp`, not `amazonprimevideo`/`prv`
+  — so **Open** now lands in the right app. Saved provider choices are filtered against the current
+  list, so a profile created before the change cannot end up with an empty carousel.
+- **Search, speech and language filter** follow: JustWatch and Cinemeta queries use the US region,
+  speech input asks for `en-US` (with `es-US`), and the original-language filter offers English,
+  Spanish, French, German, Japanese, Korean, Hindi and Portuguese instead of Indian languages only.
+- **Setup** no longer cycles Indian-language greetings.
+- **Build**: `build.sh` picks the newest installed build-tools, because the `d8` in 34.0.0
+  (R8 8.2.2) crashes on JDK 21 class files; `BT_VERSION` still pins one.
+
+### 7.8 — Local news for all 50 states and DC
+
+- Local news used to depend on a hand-written city table, so most of the country saw national
+  stories only. It now derives the state from the weather location — the city you picked, or the
+  one found from your internet address — and offers statewide coverage plus the state's biggest
+  newsrooms for **all 50 states and DC**: nonprofit statehouse outlets (Ohio Capital Journal,
+  States Newsroom's state bureaus), local TV and the large papers. **120 feeds** in all.
+- A city with newsrooms of its own still wins over the statewide list.
+- **Settings → Top Shelf → Local news state** overrides the state (or follows the location again),
+  and **Local newsrooms** shows how many that state brings. Moving the weather location rebuilds
+  the shelf.
+
+### 7.9 — Sharp pictures, and a shelf that never blanks
+
+- **Sharp artwork.** Feeds list whatever size their CMS generated and usually list the smallest
+  copy first: ABC's first image is 384 px wide, the BBC's 240, and a 1080p dock turns either into
+  mush. Every picture a story offers is now kept (with the width its markup or URL claims), and
+  `Art.java` asks each publisher's CDN for a bigger rendition where it allows one — WordPress and
+  Nexstar `?w=`, TEGNA `_640x360`/`-preview`, BBC `/240/` → `/1536/`, ABC `_384` → `_1600`, NBC's
+  `t_nbcnews-fp-*`, NPR's resizer — downloads the candidates one at a time and **measures** them,
+  then shows the first copy at least **1280 px** wide. A feed that only has thumbnails falls back
+  to the story page's own share image (`og:image` / `twitter:image`). Signed URLs (The Guardian,
+  signed S3) are fetched exactly as published, because changing the size breaks the signature.
+  Answers are memoised in `art_v2.json`, so a story is resolved once and costs nothing later.
+- **Feeds read in parallel, under one deadline.** All feeds (national, world, state, city) are
+  fetched at once with a 14-second cap for the whole pass, so one slow or dead newsroom costs its
+  own stories instead of leaving the shelf empty. The log line says how it went:
+  `news: 14/14 feeds, 12 stories`.
+- **The shelf never blanks.** A settings change no longer deletes the cached carousel: the stories
+  already on screen stay up while the new ones are fetched. An empty or failed pass keeps what is
+  showing and retries after 30 seconds rather than caching an empty shelf.
+- **Newsrooms apply where you tick them.** The dialog is now a list of checkboxes with a single
+  **Done** (no Cancel that silently discards the selection), each tick saves immediately, the
+  carousel refreshes behind the dialog, and at least one newsroom always stays on.
+- **Docs** updated throughout: `docs/features.md` (carousel, newsrooms, local states),
+  `docs/architecture.md` (the new `Art.java`, and why widths are measured rather than trusted).
+
+## Releases
+
+| Version | What it is |
+|---|---|
+| **7.9** | Sharp news artwork (≥1280 px, `og:image` fallback), parallel feeds with a deadline, a shelf that keeps its stories, newsroom ticks that apply immediately |
+| 7.8 | Local news for all 50 states and DC, driven by the weather location, with a state override |
+| 7.7 | US news, US streaming services, US search region and locale instead of India |
+| 7.6 | Search across apps and every streaming service, Stremio recommendations (upstream) |
+
 ## Quick start
 
 ```sh
 # needs JDK 17+ and Android SDK build-tools 34.0.0 + platform android-34 (see getting started)
-./build.sh                                   # → build/tvos-home.apk
+VERSION_CODE=106 VERSION_NAME=7.9 ./build.sh   # → build/tvos-home.apk
 adb connect <tv-ip>:5555
 adb install -r build/tvos-home.apk
 adb shell am start -n com.petrobot.hume/.MainActivity
