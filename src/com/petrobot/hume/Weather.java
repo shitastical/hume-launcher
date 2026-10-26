@@ -33,7 +33,7 @@ import java.util.TimeZone;
 final class Weather {
     static final String PREFS = "weather";
     static final String K_ENABLED = "enabled", K_UNITS = "units", K_PLACE = "place", K_LAT = "lat", K_LON = "lon",
-            K_MANUAL = "manual", K_SOURCE = "source", K_REFRESH = "refresh_min",
+            K_MANUAL = "manual", K_SOURCE = "source", K_REFRESH = "refresh_min", K_REGION = "region",
             K_CACHE = "cache2", K_CACHE_AT = "cache_at", K_CACHE_KEY = "cache_key";
     static final String SRC_OPEN_METEO = "openmeteo", SRC_MET = "met", SRC_WTTR = "wttr";
     static final String[] SOURCES = {SRC_OPEN_METEO, SRC_MET, SRC_WTTR};
@@ -65,6 +65,11 @@ final class Weather {
 
     static String place(Context c) {
         return prefs(c).getString(K_PLACE, "");
+    }
+
+    /** The state/province of the weather location ("Ohio"), for local news. Empty when unknown. */
+    static String region(Context c) {
+        return prefs(c).getString(K_REGION, "");
     }
 
     static String source(Context c) {
@@ -233,14 +238,16 @@ final class Weather {
             try {
                 SharedPreferences p = prefs(c);
                 double lat, lon;
-                String place;
+                String place, region = null;
                 if (manual(c)) {
                     lat = p.getFloat(K_LAT, 0);
                     lon = p.getFloat(K_LON, 0);
                     place = p.getString(K_PLACE, "");
                 } else {
                     double[] ll = new double[2];
-                    place = locate(ll);
+                    String[] meta = new String[1];
+                    place = locate(ll, meta);
+                    region = meta[0];
                     lat = ll[0];
                     lon = ll[1];
                 }
@@ -263,8 +270,15 @@ final class Weather {
                 if (d != null) {
                     if (!place.isEmpty() || d.place.isEmpty()) d.place = place;
                     d.fetchedAt = System.currentTimeMillis();
-                    p.edit().putString(K_CACHE, d.toJson().toString()).putString(K_PLACE, d.place)
-                            .putLong(K_CACHE_AT, d.fetchedAt).putString(K_CACHE_KEY, key(c)).apply();
+                    SharedPreferences.Editor e = p.edit().putString(K_CACHE, d.toJson().toString())
+                            .putString(K_PLACE, d.place).putLong(K_CACHE_AT, d.fetchedAt).putString(K_CACHE_KEY, key(c));
+                    if (region != null && !region.isEmpty()) {
+                        e.putString(K_REGION, region);
+                        // Local news follows the state, so a newly detected one rebuilds the shelf
+                        // instead of waiting out the news refresh interval.
+                        if (!region.equals(p.getString(K_REGION, ""))) Suggestions.changed(c);
+                    }
+                    e.apply();
                 }
             } catch (Exception ignored) {
                 // Keep showing the last forecast.
@@ -515,7 +529,7 @@ final class Weather {
     // ---------------------------------------------------------------- location
 
     /** Approximate location from the internet address; returns the city name. */
-    private static String locate(double[] out) throws Exception {
+    private static String locate(double[] out, String[] region) throws Exception {
         String[] services = {"https://ipapi.co/json/", "https://ipwho.is/", "https://get.geojs.io/v1/ip/geo.json"};
         Exception last = null;
         for (String url : services) {
@@ -524,6 +538,7 @@ final class Weather {
                 if (!j.has("latitude") || j.optBoolean("error") || !j.optBoolean("success", true)) continue;
                 out[0] = Double.parseDouble(j.getString("latitude"));
                 out[1] = Double.parseDouble(j.getString("longitude"));
+                region[0] = j.optString("region", "");
                 return j.optString("city", "");
             } catch (Exception e) {
                 last = e;
@@ -533,7 +548,7 @@ final class Weather {
     }
 
     static final class Place {
-        String name, detail;
+        String name, detail, region;
         double lat, lon;
     }
 
@@ -554,6 +569,7 @@ final class Weather {
                 if (!v.isEmpty()) d.append(d.length() > 0 ? ", " : "").append(v);
             }
             pl.detail = d.toString();
+            pl.region = r.optString("admin1", "");
             pl.lat = r.getDouble("latitude");
             pl.lon = r.getDouble("longitude");
             out.add(pl);
@@ -564,9 +580,10 @@ final class Weather {
     static void setPlace(Context c, Place pl) {
         SharedPreferences.Editor e = prefs(c).edit();
         if (pl == null) e.putBoolean(K_MANUAL, false);
-        else e.putBoolean(K_MANUAL, true).putString(K_PLACE, pl.name)
+        else e.putBoolean(K_MANUAL, true).putString(K_PLACE, pl.name).putString(K_REGION, pl.region)
                 .putFloat(K_LAT, (float) pl.lat).putFloat(K_LON, (float) pl.lon);
         e.remove(K_CACHE_AT).apply();
+        Suggestions.changed(c);  // a new place means new local news
     }
 
     /** WMO weather code -> short description, as Apple Weather words it. */

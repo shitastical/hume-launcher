@@ -382,7 +382,7 @@ public class SetupActivity extends Activity {
             show(index, 0);
             focusRow(0);
         });
-        option(l, "News", "U.S., your city and the world, from US newsrooms", news, () -> {
+        option(l, "News", "U.S., your state and the world, from US newsrooms", news, () -> {
             Suggestions.setShelf(this, recs, !news);
             show(index, 0);
             focusRow(1);

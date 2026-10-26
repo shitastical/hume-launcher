@@ -138,13 +138,18 @@ Full-screen artwork behind the dock while a dock app is focused. One carousel ho
   Source; with Stremio chosen, *Opens in* shows which app will be used.
 
   ![Stremio as the source](images/settings-stremio.jpg)
-- **News**: US national, local (your city, from the weather location; Ohio stations when you are in
-  Ohio) and world, from US newsrooms' RSS feeds with large images: NPR, ABC News, NBC News, The
-  Guardian US, BBC US and Politico by default (The Hill optional), plus your city's own stations
-  (in Ohio: 10TV Columbus,
-  WKYC Cleveland, WDTN Dayton, WYTV Youngstown, WKBN, NBC4, cleveland.com, Toledo Blade, Signal
-  Cleveland and Ohio Capital Journal). An editorial layout made for reading: headline,
-  summary, section, newsroom and age; no button. Updates every 30 minutes (15/30/60).
+- **News**: US national, local and world, from US newsrooms' RSS feeds with large images: NPR, ABC
+  News, NBC News, The Guardian US, BBC US and Politico by default (The Hill optional). An editorial
+  layout made for reading: headline, summary, section, newsroom and age; no button. Updates every
+  30 minutes (15/30/60).
+- **Local**: the state comes from the weather location (the city you chose, or the one found from
+  your internet connection), so local news works anywhere in the US. All **50 states and DC** have
+  statewide coverage and their biggest newsrooms (nonprofit statehouse outlets such as the Ohio
+  Capital Journal and States Newsroom's state bureaus, plus local TV and papers) — 120 feeds in all.
+  A city with newsrooms of its own uses those instead: 10TV Columbus, WKYC Cleveland, WDTN Dayton,
+  WYTV Youngstown, Toledo Blade, Signal Cleveland, WFAA Dallas, KARE 11 Minneapolis and more.
+  Settings → Top Shelf → **Local news state** overrides the state (or follows the location again);
+  **Local newsrooms** shows how many that state brings.
 - Each profile chooses what it shows (Settings → Top Shelf / Continue Watching, or setup).
 
 ## Idle full-screen carousel

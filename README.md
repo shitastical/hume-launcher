@@ -12,8 +12,8 @@ runtime libraries; the APK is about 1 MB.
 - **Home**: Liquid Glass dock, 6-across app grid in Apple's measured proportions, focus lift and
   zoom-to-open, More Apps folder, five backgrounds.
 - **Carousel**: Continue Watching first (Resume / Remove, expires after 7 days), then US news
-  (national, your city, world) and rotating recommendations from your streaming services. Goes full
-  screen when Home is idle.
+  (national, your state, world) and rotating recommendations from your streaming services. Goes
+  full screen when Home is idle.
 - **Status row**: internet indicator, time, Refresh, Search, Control Center, profile avatar.
 - **Search**: apps, settings and inputs instantly, plus movies and shows on every streaming service
   in the US (typed in English, Spanish or Hindi, or spoken) with **Open** in the app
@@ -65,4 +65,5 @@ Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 ## Credits
 
 Inter font (SIL OFL) · Nayuki QR Code generator (MIT) · weather from Open-Meteo, MET Norway and
-wttr.in · recommendations from JustWatch / TMDB / Stremio Cinemeta · news from US newsrooms' public RSS feeds.
+wttr.in · recommendations from JustWatch / TMDB / Stremio Cinemeta · news from US newsrooms' public
+RSS feeds (national, world, and every state and DC).

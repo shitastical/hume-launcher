@@ -317,9 +317,20 @@ public class SettingsActivity extends Activity {
                 int n = News.sources(this).size();
                 return n == News.SOURCES.size() ? "All" : n + " selected";
             }, this::chooseNewsrooms);
-            row("Local news for", () -> News.city(this).isEmpty() ? "Unknown" : News.city(this), () ->
-                    Toast.makeText(this, "Local news follows the weather location (Settings \u2192 Weather \u2192 Location).",
-                            Toast.LENGTH_LONG).show());
+            row("Local news state", () -> {
+                String chosen = News.stateChoice(this);
+                if (!chosen.isEmpty())
+                    return News.stateName(chosen) + "  \u00b7  " + News.localCount(chosen) + " newsrooms";
+                String detected = News.codeFor(Weather.region(this));
+                return detected.isEmpty() ? "Automatic" : "Automatic  \u00b7  " + News.stateName(detected);
+            }, this::chooseNewsState);
+            row("Local newsrooms", () -> {
+                String st = News.state(this);
+                int n = News.localCount(st);
+                return st.isEmpty() ? "Follows your location" : n + " in " + News.stateName(st);
+            }, () -> Toast.makeText(this, "Statewide coverage plus the biggest newsrooms in the state. "
+                    + "A city with its own newsroom (Settings \u2192 Weather) uses that instead.",
+                    Toast.LENGTH_LONG).show());
             row("Update news every", () -> News.refreshMinutes(this) + " minutes", () -> {
                 int[] mins = News.REFRESH_CHOICES;
                 String[] names = new String[mins.length];
@@ -346,6 +357,23 @@ public class SettingsActivity extends Activity {
                 Toast.makeText(this, "The carousel will refresh on Home", Toast.LENGTH_SHORT).show();
             });
         }
+    }
+
+    void chooseNewsState() {
+        String[] names = new String[News.STATE_CODES.length + 1];
+        names[0] = "Automatic \u2014 follow the weather location";
+        int sel = 0;
+        String cur = News.stateChoice(this);
+        for (int i = 0; i < News.STATE_CODES.length; i++) {
+            names[i + 1] = News.STATE_NAMES[i];
+            if (News.STATE_CODES[i].equals(cur)) sel = i + 1;
+        }
+        dialog("Local news state").setSingleChoiceItems(names, sel, (d, w) -> {
+            News.setState(this, w == 0 ? null : News.STATE_CODES[w - 1]);
+            Suggestions.changed(this);
+            refreshAll();
+            d.dismiss();
+        }).show();
     }
 
     void chooseNewsrooms() {

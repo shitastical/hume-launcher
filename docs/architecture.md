@@ -22,7 +22,7 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 | `Profiles.java` | Profiles (max 3), unique emoji avatars, per-profile storage names |
 | `SleepReceiver.java` | Sleep via device admin (or PowerService); sleep timer alarm |
 | `Inputs.java` | TV inputs from the TV input framework; switching via the passthrough channel URI |
-| `News.java` | News for the top shelf: US newsrooms' RSS (national, local city, world), images, freshness |
+| `News.java` | News for the top shelf: US newsrooms' RSS (national, world, and local for every state and DC or a city with its own newsrooms), images, freshness |
 | `Perms.java` | On-screen permission and default-home requests, with adb only as a last resort |
 | `Weather.java` | Forecast from Open-Meteo, MET Norway or wttr.in (with fallback) in one format, IP location / city search, cache, refresh schedule |
 | `WeatherView.java`, `WeatherIcons.java` | Weather overview card and forecast panel (drawn in code), multicolour weather icons |
