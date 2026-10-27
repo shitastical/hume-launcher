@@ -954,7 +954,9 @@ public class MainActivity extends Activity {
             drawGear(c, w / 2f, h / 2f, h * 0.27f, 0xFF4A4A52, 0xFFD2D2D9);
             return b;
         }
-        Bitmap glyph = whiteGlyph(e, (int) (h * 0.5f));
+        // The Play Store shows its own full-colour logo: a flat white glyph on blue reads as a
+        // media app, which is why the store looked like it was missing from the grid.
+        Bitmap glyph = "com.android.vending".equals(e.pkg) ? null : whiteGlyph(e, (int) (h * 0.5f));
         if (glyph != null) {
             // Soft drop shadow under the glyph, like tvOS system icons.
             Paint sp = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -1869,7 +1871,7 @@ public class MainActivity extends Activity {
     void applyHeroInfo(Suggestions.Item it, Bitmap logo, int dir) {
         boolean news = "news".equals(it.type);
         if (removeSelected) selectRemove(false);
-        heroRemove.setVisibility(!it.pkg.isEmpty() && shelfView.isFocused() ? View.VISIBLE : View.GONE);
+        heroRemove.setVisibility(canRemove(it) && shelfView.isFocused() ? View.VISIBLE : View.GONE);
         if (shelfView.isFocused()) {
             heroButton.setVisibility(news ? View.GONE : View.VISIBLE);
             if (!news) heroButton.setAlpha(1f);
@@ -1939,10 +1941,16 @@ public class MainActivity extends Activity {
         meta.add(it.type.equals("tv") ? "Series" : "Movie");
         if (!it.genres.isEmpty()) meta.add(it.genres);
         if (it.rating > 0) meta.add(String.format(java.util.Locale.US, "\u2605 %.1f", it.rating));
+        // Library items (Jellyfin) are half-watched too: say how much is left, as Continue Watching does.
+        if (it.remainingMin > 0) meta.add(it.remainingMin >= 60
+                ? (it.remainingMin / 60) + " h " + (it.remainingMin % 60) + " min left" : it.remainingMin + " min left");
         heroMeta.setText(String.join("  \u00B7  ", meta));
         heroOverview.setText(it.overview);
         Suggestions.Provider p = it.provider(this);
-        heroBtnText.setText(p != null && !Suggestions.installed(this, p.pkg) ? "Get" : "\u25B6  Open");
+        // Library cards start playing; everything else opens the service on the title.
+        boolean plays = p != null && p.id == Suggestions.JELLYFIN_ID;
+        heroBtnText.setText(p != null && !Suggestions.installed(this, p.pkg) ? "Get"
+                : plays ? (it.started() ? "\u25B6  Resume" : "\u25B6  Play") : "\u25B6  Open");
         int icon = p == null ? 0 : getResources().getIdentifier("provider_" + p.jwShort, "drawable", getPackageName());
         heroProvider.setImageResource(icon);
         heroProvider.setVisibility(icon == 0 ? View.GONE : View.VISIBLE);
@@ -2056,8 +2064,16 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Cards that can be taken off Continue Watching: an app's own half-watched entry, or a library
+     * title the viewer has already started.
+     */
+    boolean canRemove(Suggestions.Item it) {
+        return it != null && (!it.pkg.isEmpty() || (it.library() && it.started()));
+    }
+
     boolean heroIsContinue() {
-        return heroIndex >= 0 && heroIndex < heroItems.size() && !heroItems.get(heroIndex).pkg.isEmpty();
+        return heroIndex >= 0 && heroIndex < heroItems.size() && canRemove(heroItems.get(heroIndex));
     }
 
     /** Moves the highlight between Resume and Remove (the carousel keeps focus). */
@@ -2072,10 +2088,26 @@ public class MainActivity extends Activity {
     }
 
     void removeHeroItem(Suggestions.Item it) {
-        MediaWatchService.Store.remove(this, it.key);
         selectRemove(false);
         lastCwSig = "";
         heroVersion = -1;
+        if (it.library()) {
+            // Off the shelf now, and off the server's Continue Watching: the saved position is
+            // what puts it there.
+            Suggestions.drop(this, it.jfId);
+            toast("Removed " + it.title);
+            loadHero();
+            io.execute(() -> {
+                try {
+                    Jellyfin.removeFromContinue(this, it);
+                } catch (Exception e) {
+                    android.util.Log.w("TvHome", "jellyfin remove: " + e);
+                    handler.post(() -> toast("Couldn't update " + it.title));
+                }
+            });
+            return;
+        }
+        MediaWatchService.Store.remove(this, it.key);
         toast("Removed " + it.title);
         loadHero();
     }
@@ -2114,7 +2146,7 @@ public class MainActivity extends Activity {
                     }
                     return true;
                 case KeyEvent.KEYCODE_MENU:
-                    if (!down && !heroItems.isEmpty() && !heroItems.get(heroIndex).pkg.isEmpty()) {
+                    if (!down && !heroItems.isEmpty() && canRemove(heroItems.get(heroIndex))) {
                         Suggestions.Item it = heroItems.get(heroIndex);
                         List<String> l = new ArrayList<>();
                         List<Runnable> act = new ArrayList<>();
@@ -2122,9 +2154,8 @@ public class MainActivity extends Activity {
                         act.add(() -> openHeroItem(it));
                         l.add("Remove from Continue Watching");
                         act.add(() -> {
-                            MediaWatchService.Store.remove(this, it.key);
                             heroItems = new ArrayList<>();
-                            loadHero();
+                            removeHeroItem(it);
                         });
                         showMenu(heroButton, it.title, l, act, 1);
                     }

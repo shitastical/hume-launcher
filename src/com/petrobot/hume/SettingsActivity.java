@@ -284,10 +284,12 @@ public class SettingsActivity extends Activity {
         if (Suggestions.showRecs(this)) {
             section("Recommendations");
             row("Source", () -> Suggestions.sourceName(Suggestions.source(this)), this::chooseSource);
-            row("Content", () -> {
-                String t = Suggestions.types(this);
-                return t.equals("movie") ? "Movies" : t.equals("tv") ? "TV Series" : "Movies & Series";
-            }, this::chooseTypes);
+            if (!Suggestions.source(this).equals(Suggestions.SRC_JELLYFIN)) {
+                row("Content", () -> {
+                    String t = Suggestions.types(this);
+                    return t.equals("movie") ? "Movies" : t.equals("tv") ? "TV Series" : "Movies & Series";
+                }, this::chooseTypes);
+            }
         }
         if (Suggestions.showRecs(this) && Suggestions.source(this).equals(Suggestions.SRC_STREMIO)) {
             row("Opens in", () -> {
@@ -295,6 +297,18 @@ public class SettingsActivity extends Activity {
                 return Suggestions.installed(this, p.pkg) ? p.name : "Stremio (not installed)";
             }, () -> Toast.makeText(this, "Titles open in Stremio, or in Nuvio when only Nuvio is installed.",
                     Toast.LENGTH_LONG).show());
+        } else if (Suggestions.showRecs(this) && Suggestions.source(this).equals(Suggestions.SRC_JELLYFIN)) {
+            row("Jellyfin", () -> Jellyfin.connected(this) ? Jellyfin.account(this) : "Sign in\u2026", this::jellyfinMenu);
+            row("Opens in", () -> Suggestions.installed(this, Jellyfin.PKG) ? "Wholphin" : "Wholphin (not installed)",
+                    () -> {
+                        if (Suggestions.installed(this, Jellyfin.PKG)) {
+                            Toast.makeText(this, "Continue watching opens the exact film or episode in Wholphin.",
+                                    Toast.LENGTH_LONG).show();
+                        } else {
+                            Suggestions.start(this, new Intent(Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("market://details?id=" + Jellyfin.PKG)));
+                        }
+                    });
         } else if (Suggestions.showRecs(this)) {
             row("Streaming services", () -> {
                 int n = Suggestions.providers(this).size();
@@ -708,8 +722,10 @@ public class SettingsActivity extends Activity {
     }
 
     void chooseSource() {
-        String[] keys = {Suggestions.SRC_JUSTWATCH, Suggestions.SRC_TMDB, Suggestions.SRC_STREMIO};
-        String[] names = {"JustWatch  (no setup needed)", "TMDB  (needs a free token)", "Stremio  (opens in Stremio or Nuvio)"};
+        String[] keys = {Suggestions.SRC_JUSTWATCH, Suggestions.SRC_TMDB, Suggestions.SRC_STREMIO,
+                Suggestions.SRC_JELLYFIN};
+        String[] names = {"JustWatch  (no setup needed)", "TMDB  (needs a free token)",
+                "Stremio  (opens in Stremio or Nuvio)", "Jellyfin  (your own server, opens in Wholphin)"};
         int cur = Math.max(0, java.util.Arrays.asList(keys).indexOf(Suggestions.source(this)));
         dialog("Recommendation source").setSingleChoiceItems(names, cur, (d, w) -> {
             Suggestions.prefs(this).edit().putString(Suggestions.K_SOURCE, keys[w]).apply();
@@ -718,6 +734,7 @@ public class SettingsActivity extends Activity {
             d.dismiss();
             show(SHELF);
             if (w == 1 && !Suggestions.hasToken(this)) enterToken();
+            if (w == 3 && !Jellyfin.connected(this)) jellyfinSignIn();
         }).show();
     }
 
@@ -746,6 +763,82 @@ public class SettingsActivity extends Activity {
                     Suggestions.changed(this);
                     refreshAll();
                 })
+                .setNegativeButton("Cancel", null)
+                .show();
+        in.requestFocus();
+    }
+
+    /**
+     * Jellyfin: sign in, sign in again, or sign out. The account belongs to the TV rather than the
+     * profile — it is one server, and one account's half-watched films.
+     */
+    void jellyfinMenu() {
+        if (!Jellyfin.connected(this)) {
+            jellyfinSignIn();
+            return;
+        }
+        // The account goes in the title: a message plus a list collapses to message-only on some
+        // TV dialog themes, which left "Sign in again" and "Sign out" invisible and unreachable.
+        dialog("Jellyfin  \u00b7  " + Jellyfin.account(this) + "\n" + Jellyfin.url(this))
+                .setItems(new String[]{"Sign in again", "Sign out"}, (d, w) -> {
+                    d.dismiss();
+                    if (w == 0) {
+                        jellyfinSignIn();
+                    } else {
+                        Jellyfin.signOut(this);
+                        refreshAll();
+                    }
+                })
+                .show();
+    }
+
+    void jellyfinSignIn() {
+        ask("Jellyfin server", "The address of your server \u2014 the one Wholphin uses, a seedbox included. "
+                        + "A pasted web player address works too.",
+                "https://seedbox.example.com/jellyfin", Jellyfin.url(this), false,
+                url -> ask("Jellyfin username", "The account you sign in to Jellyfin with.",
+                        "Username", Jellyfin.prefs(this).getString(Jellyfin.K_USER_NAME, ""), false,
+                        user -> ask("Jellyfin password", "It goes to your server and nowhere else; "
+                                        + "Hume keeps only the token the server returns.",
+                                "Password", "", true,
+                                pass -> signInToJellyfin(url, user, pass))));
+    }
+
+    void signInToJellyfin(String url, String user, String pass) {
+        Toast.makeText(this, "Signing in\u2026", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            String err = Jellyfin.signIn(this, url, user, pass);
+            runOnUiThread(() -> {
+                refreshAll();
+                if (err == null) {
+                    Toast.makeText(this, "Connected: " + Jellyfin.account(this), Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, err, Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "jellyfin-signin").start();
+    }
+
+    /** One question with a text field, answered on the TV's own keyboard (no adb, no phone). */
+    void ask(String title, String message, String hint, String value, boolean secret,
+             java.util.function.Consumer<String> ok) {
+        android.widget.EditText in = new android.widget.EditText(this);
+        in.setSingleLine(true);
+        in.setHint(hint);
+        in.setText(value);
+        in.setSelection(in.getText().length());
+        in.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | (secret ? android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                : android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS));
+        int pad = Ui.px(this, 14);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(in);
+        dialog(title)
+                .setMessage(message)
+                .setView(box)
+                .setPositiveButton(secret ? "Sign in" : "Next",
+                        (d, w) -> ok.accept(secret ? in.getText().toString() : in.getText().toString().trim()))
                 .setNegativeButton("Cancel", null)
                 .show();
         in.requestFocus();

@@ -44,7 +44,11 @@
         </intent>
     </queries>
 
+    <!-- A Jellyfin server on the home network is usually plain http, which Android blocks unless the
+         app says otherwise. Nothing here is a web view: the feed and API hosts are fixed, and the
+         library server is the one the user typed. -->
     <application
+        android:usesCleartextTraffic="true"
         android:label="Hume Launcher"
         android:icon="@drawable/ic_launcher"
         android:banner="@drawable/banner"

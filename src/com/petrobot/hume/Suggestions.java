@@ -45,9 +45,11 @@ final class Suggestions {
     static final String SHELF_RECS = "recs", SHELF_NEWS = "news", SHELF_BOTH = "both", SHELF_NONE = "none";
     /**
      * Recommendation sources: JustWatch needs no key (unofficial API); TMDB needs a token; Stremio
-     * is Cinemeta's public top lists, opened in the Stremio or Nuvio app.
+     * is Cinemeta's public top lists, opened in the Stremio or Nuvio app; Jellyfin is the user's own
+     * library, opened in Wholphin.
      */
-    static final String SRC_JUSTWATCH = "justwatch", SRC_TMDB = "tmdb", SRC_STREMIO = "stremio";
+    static final String SRC_JUSTWATCH = "justwatch", SRC_TMDB = "tmdb", SRC_STREMIO = "stremio",
+            SRC_JELLYFIN = "jellyfin";
     static final long MAX_AGE_MS = 2L * 60 * 60 * 1000;  // recommendations rotate every 2 hours
     /** POOL titles are fetched per service; PER_SOURCE of them are picked at random each refresh. */
     static final int PER_SOURCE = 3, POOL = 20, MAX_ITEMS = 10;
@@ -84,9 +86,10 @@ final class Suggestions {
      * Apps that open Cinemeta titles by IMDb id. Not streaming services, so they never appear in
      * PROVIDERS; Stremio comes first because it is the one on the Play Store.
      */
-    static final int STREMIO_ID = -1, NUVIO_ID = -2;
+    static final int STREMIO_ID = -1, NUVIO_ID = -2, JELLYFIN_ID = -3;
     static final Provider STREMIO = new Provider(STREMIO_ID, "Stremio", "com.stremio.one", "", ""),
-            NUVIO = new Provider(NUVIO_ID, "Nuvio", "com.nuvio.tv", "", "");
+            NUVIO = new Provider(NUVIO_ID, "Nuvio", "com.nuvio.tv", "", ""),
+            WHOLPHIN = new Provider(JELLYFIN_ID, "Wholphin", Jellyfin.PKG, "", "");
 
     /** Original-language filters offered in settings (TMDB ISO 639-1 codes). */
     static final String[] LANG_CODES = {"en", "es", "fr", "de", "ja", "ko", "hi", "pt"};
@@ -103,6 +106,8 @@ final class Suggestions {
         String pkg = "", key = "";
         float progress = -1f;
         int remainingMin = -1;
+        /** Jellyfin titles: the item's id and kind, which is all Wholphin's deep link needs. */
+        String jfId = "", jfType = "";
         double rating;
         /** News: when the story was published (ms), for "2 h ago". */
         long published;
@@ -111,7 +116,10 @@ final class Suggestions {
             return new JSONObject().put("id", id).put("providerId", providerId).put("type", type)
                     .put("title", title).put("overview", overview).put("backdrop", backdrop)
                     .put("logo", logo == null ? "" : logo).put("year", year).put("genres", genres).put("rating", rating)
-                    .put("link", link).put("pub", published).put("imgs", new JSONArray(imgs));
+                    .put("link", link).put("pub", published).put("imgs", new JSONArray(imgs))
+                    .put("jf", jfId).put("jfType", jfType)
+                    // How far in the viewer is: a cached shelf has to say "Resume" too.
+                    .put("prog", progress).put("left", remainingMin);
         }
 
         static Item fromJson(JSONObject o) {
@@ -128,6 +136,10 @@ final class Suggestions {
             i.genres = o.optString("genres");
             i.rating = o.optDouble("rating", 0);
             i.link = o.optString("link");
+            i.jfId = o.optString("jf");
+            i.jfType = o.optString("jfType");
+            i.progress = (float) o.optDouble("prog", -1);
+            i.remainingMin = o.optInt("left", -1);
             i.published = o.optLong("pub");
             JSONArray imgs = o.optJSONArray("imgs");
             for (int k = 0; imgs != null && k < imgs.length(); k++) {
@@ -137,7 +149,18 @@ final class Suggestions {
             return i;
         }
 
+        /** Whether the viewer is part-way through this: it plays on from there, not from the start. */
+        boolean started() {
+            return progress > 0 || remainingMin > 0;
+        }
+
+        /** A title from the user's own library (Jellyfin), played by Wholphin. */
+        boolean library() {
+            return jfId != null && !jfId.isEmpty();
+        }
+
         Provider provider() {
+            if (providerId == JELLYFIN_ID) return WHOLPHIN;
             for (Provider p : PROVIDERS) if (p.id == providerId) return p;
             return null;
         }
@@ -197,12 +220,21 @@ final class Suggestions {
     }
 
     static String sourceName(String s) {
-        return s.equals(SRC_TMDB) ? "TMDB" : s.equals(SRC_STREMIO) ? "Stremio" : "JustWatch";
+        return s.equals(SRC_TMDB) ? "TMDB" : s.equals(SRC_STREMIO) ? "Stremio"
+                : s.equals(SRC_JELLYFIN) ? "Jellyfin" : "JustWatch";
     }
 
-    /** Whether the chosen source is usable right now (JustWatch and Stremio always; TMDB once a token is set). */
+    /** Whether the chosen source is usable right now (JustWatch and Stremio always; the others once set up). */
     static boolean ready(Context c) {
-        return showNews(c) || !source(c).equals(SRC_TMDB) || hasToken(c);
+        return showNews(c) || recsReady(c);
+    }
+
+    /** Whether recommendations can be fetched: TMDB needs a token, Jellyfin a signed-in server. */
+    static boolean recsReady(Context c) {
+        String s = source(c);
+        if (s.equals(SRC_TMDB)) return hasToken(c);
+        if (s.equals(SRC_JELLYFIN)) return Jellyfin.connected(c);
+        return true;
     }
 
     static boolean hasToken(Context c) {
@@ -269,11 +301,34 @@ final class Suggestions {
         }
     }
 
+    /**
+     * Takes one library title out of the cache, so a removed Continue Watching card doesn't come
+     * back on the next rebuild of the carousel from disk.
+     */
+    static void drop(Context c, String jfId) {
+        File f = cacheFile(c);
+        if (!f.exists() || jfId == null || jfId.isEmpty()) return;
+        try {
+            JSONArray a = new JSONArray(new String(readAll(new FileInputStream(f)), StandardCharsets.UTF_8));
+            JSONArray keep = new JSONArray();
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.optJSONObject(i);
+                if (o != null && jfId.equals(o.optString("jf"))) continue;
+                if (o != null) keep.put(o);
+            }
+            try (OutputStream os = new FileOutputStream(f)) {
+                os.write(keep.toString().getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            android.util.Log.w("TvHome", "suggestions drop: " + e);
+        }
+    }
+
     /** Fetches fresh suggestions from the chosen source (blocking; call off the UI thread). */
     static List<Item> fetch(Context c) throws Exception {
         List<Item> recs = new ArrayList<>(), news = new ArrayList<>();
         Exception err = null;
-        if (showRecs(c) && (!source(c).equals(SRC_TMDB) || hasToken(c))) {
+        if (showRecs(c) && recsReady(c)) {
             try {
                 recs = fetchRecs(c);
             } catch (Exception e) {
@@ -308,7 +363,9 @@ final class Suggestions {
     static List<Item> fetchRecs(Context c) throws Exception {
         String from = source(c);
         List<List<Item>> sources = from.equals(SRC_TMDB) ? fetchTmdb(c)
-                : from.equals(SRC_STREMIO) ? fetchStremio(c) : fetchJustWatch(c);
+                : from.equals(SRC_STREMIO) ? fetchStremio(c)
+                : from.equals(SRC_JELLYFIN) ? java.util.Collections.singletonList(Jellyfin.resume(c))
+                : fetchJustWatch(c);
         // Rotate: a random pick from each service's popular pool, so the carousel changes through the day.
         java.util.Random rnd = new java.util.Random();
         for (List<Item> src : sources) java.util.Collections.shuffle(src, rnd);
@@ -693,6 +750,10 @@ final class Suggestions {
         }
         if (it.providerId == STREMIO_ID) {
             openStremio(c, it, p);
+            return;
+        }
+        if (it.providerId == JELLYFIN_ID) {  // the user's own library: straight into playback in Wholphin
+            Jellyfin.open(c, it);
             return;
         }
         String q = it.title;

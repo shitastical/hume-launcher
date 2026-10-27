@@ -17,7 +17,9 @@ been reworked around sharp artwork that never disappears. What changed, in detai
 - **Home**: Liquid Glass dock, 6-across app grid in Apple's measured proportions, focus lift and
   zoom-to-open, More Apps folder, five backgrounds.
 - **Carousel**: Continue Watching first (Resume / Remove, expires after 7 days), then US news
-  (national, your state, world) and rotating recommendations from your streaming services. Goes
+  (national, your state, world) and rotating recommendations from your streaming services —
+  JustWatch, TMDB, Stremio, or your own Jellyfin library, whose half-watched titles resume in
+  Wholphin and can be removed from Continue Watching from the card. Goes
   full screen when Home is idle. Story artwork is shown at full dock width — the sharpest copy each
   publisher offers, never a feed thumbnail — and the shelf keeps its stories up while it refetches.
 - **Status row**: internet indicator, time, Refresh, Search, Control Center, profile avatar.
