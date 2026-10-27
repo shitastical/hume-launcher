@@ -124,8 +124,20 @@ it, so it can't open Hume's Search.)
 Full-screen artwork behind the dock while a dock app is focused. One carousel holds, in order:
 
 1. **Continue Watching** (up to six): what you played recently in each app, from the "now playing"
-   information apps publish (title, artwork, position, time left). **▶ Resume** opens the app;
-   **✕ Remove** drops it. Titles not played again for **7 days** expire.
+   information apps publish (title, artwork, position, time left). **▶ Resume** opens that title
+   rather than only its app: when the app publishes the item's own id (SmartTube and the YouTube
+   apps do), the card deep-links straight to the video and the app continues from its saved
+   position; apps that publish no id are launched as before. **✕ Remove** drops it. Titles not
+   played again for **7 days** expire.
+
+   Settings → Continue Watching → **Apps** picks which apps appear on the carousel: a row for every
+   app the feature works with — the streaming services titles open in, SmartTube, and the players
+   it knows (YouTube, Plex, Jellyfin, Kodi) — not every app on the TV, since a file
+   manager or a settings app has nothing to resume. An app outside that list appears as soon as it
+   has played something, so nothing that has a title can hide itself. Each is **Shown** or
+   **Hidden**: hiding only hides the cards (the history stays), and *Show every app again* restores
+   them. SmartTube's stable and beta builds count as one app, named **SmartTube**, and titles open
+   in whichever of the two is newer.
 2. **News** and **recommendations**, alternating.
 
 - **Recommendations**: popular titles in the US on your services. Source **JustWatch** (no key,

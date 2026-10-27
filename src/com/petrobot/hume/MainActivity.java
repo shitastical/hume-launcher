@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
             "com.netflix.ninja",
             "com.amazon.amazonvideo.livingroom",
             "org.smarttube.stable",
+            "org.smarttube.beta",
             "com.disney.disneyplus",
             "com.apple.atve.androidtv.appletv",
             "com.spotify.tv.android",
@@ -1894,7 +1895,8 @@ public class MainActivity extends Activity {
         selectStrip(heroIndex);
         if (!it.pkg.isEmpty()) {  // Continue Watching entry
             List<String> meta = new ArrayList<>();
-            meta.add(appLabel(it.pkg));
+            // One name per app: SmartTube's stable and beta builds are both "SmartTube".
+            meta.add(Suggestions.label(this, it.pkg));
             if (it.remainingMin > 0) meta.add(it.remainingMin >= 60
                     ? (it.remainingMin / 60) + " h " + (it.remainingMin % 60) + " min left" : it.remainingMin + " min left");
             heroMeta.setText(String.join("  \u00B7  ", meta));
@@ -2273,9 +2275,24 @@ public class MainActivity extends Activity {
             Suggestions.open(this, it);
             return;
         }
-        Intent i = getPackageManager().getLeanbackLaunchIntentForPackage(it.pkg);
-        if (i == null) i = getPackageManager().getLaunchIntentForPackage(it.pkg);
+        // Resume means resume: when the app published the item's own id (SmartTube and the YouTube
+        // apps do), deep-link to that item at the saved position. The launcher intent below lands
+        // on the app's home screen, which is all "Resume" used to do.
+        String pkg = it.pkg;
+        if (!it.mid.isEmpty() && Suggestions.start(this, resumeIntent(it, pkg))) return;
+        Intent i = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
+        if (i == null) i = getPackageManager().getLaunchIntentForPackage(pkg);
         if (i != null) Suggestions.start(this, i);
+    }
+
+    /**
+     * The app's own link to the one item that was playing. Measured on the TV: the plain watch URL
+     * starts the video and SmartTube resumes from its own saved position; adding {@code t=} makes
+     * the link resolve to a chooser instead of the app, so the position is left to the app.
+     */
+    Intent resumeIntent(Suggestions.Item it, String pkg) {
+        return new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + it.mid))
+                .setPackage(pkg);
     }
 
     // ---------------------------------------------------------------- focus sway

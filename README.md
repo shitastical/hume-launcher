@@ -44,7 +44,7 @@ Full list with screenshots: **[docs/features.md](docs/features.md)**.
 ## What this fork changes
 
 Upstream ships aimed at India. This fork retargets everything to the US and fixes the carousel, in
-five releases (7.7 → 8.1). Nothing here is a setting: these are the defaults, and every profile
+six releases (7.7 → 8.2). Nothing here is a setting: these are the defaults, and every profile
 gets them.
 
 ### 7.7 — The US instead of India
@@ -143,11 +143,35 @@ gets them.
 - **Plain-http servers work.** `usesCleartextTraffic` is on, so the usual `http://box:8096` on a
   home network is reachable; there is still no web view anywhere in the app.
 
+### 8.2 — Resume opens the video itself, and the picker lists the video apps
+
+- **Resume opens the video, not just the app.** Hume already had Resume — the button has been there
+  since 8.1 — but all it could do was launch the app: a card knew the package and the title, never
+  *which video*, so SmartTube opened on its own home screen and nothing resumed. Apps do publish
+  that id in the media session they expose while playing (measured on the TV: SmartTube sends the
+  YouTube video id as `METADATA_KEY_MEDIA_ID`), so the store keeps it alongside the title and
+  **▶ Resume** deep-links to `youtube.com/watch?v=<id>` scoped to that app — SmartTube opens that
+  video and continues from its own saved position. Apps that publish no id behave exactly as
+  before: their launcher opens. (Passing `&t=` was tried and dropped: it makes the link resolve to
+  a chooser instead of the app.)
+- **Pick the apps on the carousel.** Settings → Continue Watching → **Apps** lists **every app
+  Continue Watching can work with** — the streaming services titles open in, SmartTube, and the
+  players it knows (YouTube, Plex, Jellyfin, Kodi) — with **Shown** / **Hidden** per
+  app. Not the whole system: a file manager, a downloader or a settings app has nothing to resume.
+  An app outside that list appears as soon as it has played something, so a title can never hide
+  itself. Hiding takes that app's titles off Continue Watching without deleting the history, so
+  showing it again brings them back as they were; *Show every app again* clears all the hiding at
+  once.
+- **SmartTube is one app.** Its stable and beta builds are one row, called **SmartTube** (no
+  "beta" in the picker or on the card), and a title opens in whichever of the two has the higher
+  version code — hide it once and both channels are hidden.
+
 ## Releases
 
 | Version | What it is |
 |---|---|
-| **8.1** | Your own Jellyfin library on the shelf: Resume with time left, Remove from Continue Watching, long-press menu, progress kept with the cache |
+| **8.2** | **Resume opens the actual video instead of only launching the app** (SmartTube and the YouTube apps); Continue Watching → Apps lists the video apps it can resume — streaming services, SmartTube, YouTube, Plex, Jellyfin, Kodi — with Show/Hidden; SmartTube stable and beta as one app |
+| 8.1 | Your own Jellyfin library on the shelf: Resume with time left, Remove from Continue Watching, long-press menu, progress kept with the cache |
 | 8.0 | Aerial Views as the screensaver; no launcher screensaver, and Home never holds the screen on |
 | 7.9 | Sharp news artwork (≥1280 px, `og:image` fallback), parallel feeds with a deadline, a shelf that keeps its stories, newsroom ticks that apply immediately |
 | 7.8 | Local news for all 50 states and DC, driven by the weather location, with a state override |

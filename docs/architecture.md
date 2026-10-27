@@ -19,7 +19,7 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 | `Jellyfin.java` | Jellyfin server: sign-in, saved token, Continue Watching (`Items/Resume`), item URLs, resume position, Remove from Continue Watching (`UserData`), Wholphin deep links |
 | `Search.java` | Search data: JustWatch title search (every service in the US) and Cinemeta, matching each service to its installed app, Open / Get, recent searches |
 | `SearchPanel.java` | The search screen: one-row keyboard (English, digits, Hindi, voice), Apps & Settings and Movies & TV rows, the How to Watch sheet |
-| `MediaWatchService.java` | Notification listener → media sessions → Continue Watching store; DND access |
+| `MediaWatchService.java` | Notification listener → media sessions → Continue Watching store (each title's own id for deep-link resume, per-app hiding); DND access |
 | `Profiles.java` | Profiles (max 3), unique emoji avatars, per-profile storage names |
 | `SleepReceiver.java` | Sleep via device admin (or PowerService); sleep timer alarm |
 | `Inputs.java` | TV inputs from the TV input framework; switching via the passthrough channel URI |

@@ -88,7 +88,7 @@ final class Suggestions {
      */
     static final int STREMIO_ID = -1, NUVIO_ID = -2, JELLYFIN_ID = -3;
     static final Provider STREMIO = new Provider(STREMIO_ID, "Stremio", "com.stremio.one", "", ""),
-            NUVIO = new Provider(NUVIO_ID, "Nuvio", "com.nuvio.tv", "", ""),
+            NUVIO = new Provider(NUVIO_ID, "Nuvio", "com.nuvio.app", "", ""),
             WHOLPHIN = new Provider(JELLYFIN_ID, "Wholphin", Jellyfin.PKG, "", "");
 
     /** Original-language filters offered in settings (TMDB ISO 639-1 codes). */
@@ -104,6 +104,9 @@ final class Suggestions {
         List<String> imgs = new ArrayList<>();
         /** Continue Watching entries: the app that played it, its store key, and progress. */
         String pkg = "", key = "";
+        /** The item's own id in that app (SmartTube: the video) and where it was left, in seconds. */
+        String mid = "";
+        int resumeSec = -1;
         float progress = -1f;
         int remainingMin = -1;
         /** Jellyfin titles: the item's id and kind, which is all Wholphin's deep link needs. */
@@ -117,7 +120,7 @@ final class Suggestions {
                     .put("title", title).put("overview", overview).put("backdrop", backdrop)
                     .put("logo", logo == null ? "" : logo).put("year", year).put("genres", genres).put("rating", rating)
                     .put("link", link).put("pub", published).put("imgs", new JSONArray(imgs))
-                    .put("jf", jfId).put("jfType", jfType)
+                    .put("jf", jfId).put("jfType", jfType).put("mid", mid).put("sec", resumeSec)
                     // How far in the viewer is: a cached shelf has to say "Resume" too.
                     .put("prog", progress).put("left", remainingMin);
         }
@@ -138,6 +141,8 @@ final class Suggestions {
             i.link = o.optString("link");
             i.jfId = o.optString("jf");
             i.jfType = o.optString("jfType");
+            i.mid = o.optString("mid");
+            i.resumeSec = o.optInt("sec", -1);
             i.progress = (float) o.optDouble("prog", -1);
             i.remainingMin = o.optInt("left", -1);
             i.published = o.optLong("pub");
@@ -733,6 +738,54 @@ final class Suggestions {
         } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
+    }
+
+    // ------------------------------------------------------------------ app families
+
+    /** SmartTube ships stable and beta as separate packages; to the viewer it is one app. */
+    static final String[] SMARTTUBE_PKGS = {"org.smarttube.stable", "org.smarttube.beta"};
+    static final String SMARTTUBE = "smarttube";
+
+    static boolean isSmartTube(String pkg) {
+        return SMARTTUBE.equals(pkg) || SMARTTUBE_PKGS[0].equals(pkg) || SMARTTUBE_PKGS[1].equals(pkg);
+    }
+
+    /** What the pickers and the hidden list work with: one id per app, whichever channel it is. */
+    static String family(String pkg) {
+        return isSmartTube(pkg) ? SMARTTUBE : pkg;
+    }
+
+    /** The SmartTube install to use: stable or beta, whichever has the higher version code. */
+    static String smartTube(Context c) {
+        String best = "";
+        long code = -1;
+        for (String p : SMARTTUBE_PKGS) {
+            try {
+                long v = c.getPackageManager().getPackageInfo(p, 0).versionCode;
+                if (v > code) {
+                    code = v;
+                    best = p;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The package a recorded title should open: the newest SmartTube when it's one of its channels
+     * (so a title played in beta opens in stable once stable is the newer build), else the package
+     * itself, or empty when it is gone.
+     */
+    static String target(Context c, String pkg) {
+        if (!isSmartTube(pkg)) return installed(c, pkg) ? pkg : "";
+        return smartTube(c);
+    }
+
+    /** "SmartTube" for any of its channels, otherwise the app's own name. */
+    static String label(Context c, String pkg) {
+        if (isSmartTube(pkg)) return "SmartTube";
+        return MediaWatchService.Store.appLabel(c, pkg);
     }
 
     /**

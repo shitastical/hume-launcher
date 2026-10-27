@@ -50,7 +50,7 @@ public class SettingsActivity extends Activity {
     // tvOS-style pages: the main list opens a page per section; Back returns to the main list.
     static final String ROOT = "root", PROFILES = "Profiles", SHELF = "Top Shelf", PRESENT = "Presentation",
             INPUTS = "Inputs", WEATHER = "Weather", WATCHING = "Continue Watching", HOME = "Home",
-            PERMS = "Permissions", ABOUT = "About";
+            PERMS = "Permissions", ABOUT = "About", WATCH_APPS = "Continue Watching Apps";
 
     FrameLayout leftPane;
     ScrollView scroller;
@@ -98,6 +98,7 @@ public class SettingsActivity extends Activity {
             case INPUTS: pageInputs(); break;
             case WEATHER: pageWeather(); break;
             case WATCHING: pageWatching(); break;
+            case WATCH_APPS: pageWatchingApps(); break;
             case HOME: pageHome(); break;
             case PERMS: pagePermissions(); break;
             case ABOUT: pageAbout(); break;
@@ -205,6 +206,7 @@ public class SettingsActivity extends Activity {
             case INPUTS: grad = new int[]{0xFF6E6E73, 0xFF2C2C2E}; glyph = "input"; break;
             case WEATHER: grad = new int[]{0xFF5AC8FA, 0xFF2D6BD8}; glyph = null; break;
             case WATCHING: grad = new int[]{0xFFFF6482, 0xFFD6305A}; glyph = "present"; break;
+            case WATCH_APPS: grad = new int[]{0xFFFF6482, 0xFFD6305A}; glyph = "present"; break;
             case HOME: grad = new int[]{0xFF30D158, 0xFF1E9E48}; glyph = "house"; break;
             case PERMS: grad = new int[]{0xFF8E8E93, 0xFF48484A}; glyph = "shield"; break;
             default: grad = new int[]{0xFF8E8E93, 0xFF3A3A3C}; glyph = "gear"; break;
@@ -509,10 +511,52 @@ public class SettingsActivity extends Activity {
         });
         row("Access", () -> MediaWatchService.granted(this) ? "Allowed"
                 : Perms.listenerSupported(this) ? "Allow\u2026" : "Not on this TV", () -> Perms.requestListener(this));
+        row("Apps", () -> {
+            List<String> apps = MediaWatchService.Store.apps(this);
+            if (apps.isEmpty()) return "\u203a";
+            int hidden = 0;
+            for (String pkg : apps) if (MediaWatchService.Store.hidden(this).contains(pkg)) hidden++;
+            return (hidden == 0 ? apps.size() + " shown" : (apps.size() - hidden) + " of " + apps.size()) + "   \u203a";
+        }, () -> show(WATCH_APPS));
         row("Clear history", () -> "", () -> {
             MediaWatchService.Store.clear(this);
             Toast.makeText(this, "Continue Watching cleared", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    /**
+     * Which apps' titles appear on the carousel. Hiding an app only hides its cards: its history
+     * stays on disk, so showing it again brings the titles back as they were.
+     */
+    void pageWatchingApps() {
+        List<String> apps = MediaWatchService.Store.apps(this);
+        section("Show in Continue Watching");
+        if (apps.isEmpty()) {
+            row("Nothing to choose yet", () -> "", () -> Toast.makeText(this,
+                    "No app on this TV plays video, so there is nothing to hide.", Toast.LENGTH_LONG).show());
+            return;
+        }
+        for (int i = 0; i < apps.size(); i++) {
+            String pkg = apps.get(i);
+            int row = i;
+            row(Suggestions.label(this, pkg),
+                    () -> MediaWatchService.Store.hidden(this).contains(pkg) ? "Hidden" : "Shown",
+                    () -> {
+                        MediaWatchService.Store.show(this, pkg,
+                                MediaWatchService.Store.hidden(this).contains(pkg));
+                        // The page gains or loses "Show every app again", so rebuild it and keep
+                        // the focus on the row that was just toggled.
+                        show(WATCH_APPS);
+                        android.view.View r = list.getChildAt(Math.min(row + 1, list.getChildCount() - 1));
+                        if (r != null && r.isFocusable()) r.requestFocus();
+                    });
+        }
+        if (!MediaWatchService.Store.hidden(this).isEmpty()) {
+            row("Show every app again", () -> "", () -> {
+                MediaWatchService.Store.setHidden(this, new java.util.HashSet<>());
+                Toast.makeText(this, "Every app is back on the carousel", Toast.LENGTH_SHORT).show();
+            });
+        }
     }
 
     void pageHome() {
