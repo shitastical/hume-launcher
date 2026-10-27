@@ -57,7 +57,9 @@ Jellyfin replaces the recommendation row with your own library's Continue Watchi
 the https address if it has a certificate), a username and its password. The launcher signs in once
 and keeps the token; the password is not stored. Playback needs
 [Wholphin](https://github.com/damontecres/Wholphin) installed on the TV — **Resume** hands the item
-to it by deep link, and Wholphin picks up the position the server holds. For TMDB, enter a free API key from themoviedb.org (Settings → API). The short v3 *API Key* is
+to it by deep link, and Wholphin picks up the position the server holds.
+
+**TMDB** needs a free API key from themoviedb.org (Settings → API). The short v3 *API Key* is
 easiest to type with a remote. It can also be set from a computer:
 
 ```sh
