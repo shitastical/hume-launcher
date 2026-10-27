@@ -129,9 +129,9 @@ gets them.
   (`/Users/{id}/Items/Resume`) — artwork included, at carousel size. A show's card is its backdrop
   and logo, with the episode in the detail line.
 - **▶ Resume, not Play.** A half-watched film or episode says **Resume** and how much is left;
-  only titles you have not started say **Play**. Pressing it starts the item in
-  [Wholphin](https://github.com/damontecres/Wholphin) through its `wholphin://play` deep link, and
-  Wholphin resumes from the position the server holds.
+  only titles you have not started say **Play**.  Pressing it starts the item in
+  [Wholphin](https://github.com/damontecres/Wholphin) (installed on the TV) through its
+  `wholphin://play` deep link, and Wholphin resumes from the position the server holds.
 - **✕ Remove works on library titles.** Right moves the highlight from Resume to Remove, and
   Remove clears the saved position on the server (`PlaybackPositionTicks: 0` — what Jellyfin's own
   *Remove from Continue Watching* does), drops the card from the shelf and from the cached shelf,

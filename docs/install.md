@@ -50,7 +50,14 @@ last resort for TVs that have no such screen.
 
 Recommendations use JustWatch by default (no setup). **Settings → Top Shelf → Source** also offers
 **Stremio** (Cinemeta's popular movies and series, no setup; titles open in the Stremio app, or in
-Nuvio when only Nuvio is installed) and **TMDB**. For TMDB, enter a free API key from themoviedb.org (Settings → API). The short v3 *API Key* is
+Nuvio when only Nuvio is installed), **Jellyfin** and **TMDB**.
+
+Jellyfin replaces the recommendation row with your own library's Continue Watching. Choose it under
+**Settings → Top Shelf → Source → Jellyfin**, then enter the server's address (`http://box:8096`, or
+the https address if it has a certificate), a username and its password. The launcher signs in once
+and keeps the token; the password is not stored. Playback needs
+[Wholphin](https://github.com/damontecres/Wholphin) installed on the TV — **Resume** hands the item
+to it by deep link, and Wholphin picks up the position the server holds. For TMDB, enter a free API key from themoviedb.org (Settings → API). The short v3 *API Key* is
 easiest to type with a remote. It can also be set from a computer:
 
 ```sh
