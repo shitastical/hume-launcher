@@ -158,7 +158,7 @@ gets them.
 
 ```sh
 # needs JDK 17+ and Android SDK build-tools 34.0.0 + platform android-34 (see getting started)
-VERSION_CODE=107 VERSION_NAME=8.0 ./build.sh   # → build/tvos-home.apk
+VERSION_CODE=108 VERSION_NAME=8.1 ./build.sh   # → build/tvos-home.apk
 adb connect <tv-ip>:5555
 adb install -r build/tvos-home.apk
 adb shell am start -n com.petrobot.hume/.MainActivity

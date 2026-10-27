@@ -136,6 +136,8 @@ Full-screen artwork behind the dock while a dock app is focused. One carousel ho
   goes to the title's page in **Stremio**, or in **[Nuvio](https://github.com/NuvioMedia/NuvioTV)**
   when only Nuvio is installed; **Get** opens Stremio on the Play Store. Settings → Top Shelf →
   Source; with Stremio chosen, *Opens in* shows which app will be used.
+
+  ![Stremio as the source](images/settings-stremio.jpg)
 - **Jellyfin** as the source: your own library's Continue Watching (`/Users/{id}/Items/Resume`),
   artwork included. A half-watched film or episode shows how much is left and behaves like the
   Continue Watching row itself: **▶ Resume** starts it in
@@ -145,8 +147,6 @@ Full-screen artwork behind the dock while a dock app is focused. One carousel ho
   card offers **Resume** and **Remove from Continue Watching** too. Titles you haven't started
   say **▶ Play**. Settings → Top Shelf → Jellyfin: address, username and password (the launcher
   signs in once and keeps the token).
-
-  ![Stremio as the source](images/settings-stremio.jpg)
 - **News**: US national, local and world, from US newsrooms' RSS feeds with large images: NPR, ABC
   News, NBC News, The Guardian US, BBC US and Politico by default (The Hill optional). An editorial
   layout made for reading: headline, summary, section, newsroom and age; no button. Updates every
