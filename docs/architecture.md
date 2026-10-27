@@ -15,7 +15,8 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 | `MainActivity.java` | Home screen: grid/dock, focus & move, launch zoom, carousel (Continue Watching + news + recommendations), status row, Liquid Glass, Control Center (incl. Memory/Clean), profile switcher, idle mode, menus |
 | `SetupActivity.java` | First-time setup pages (Apple-style, one question per page) |
 | `SettingsActivity.java` | All settings, tvOS list layout |
-| `Suggestions.java` | JustWatch / TMDB / Stremio (Cinemeta) recommendations: fetch, cache, artwork, deep links |
+| `Suggestions.java` | JustWatch / TMDB / Stremio (Cinemeta) and Jellyfin recommendations: fetch, cache, artwork, deep links, resume state |
+| `Jellyfin.java` | Jellyfin server: sign-in, saved token, Continue Watching (`Items/Resume`), item URLs, resume position, Remove from Continue Watching (`UserData`), Wholphin deep links |
 | `Search.java` | Search data: JustWatch title search (every service in the US) and Cinemeta, matching each service to its installed app, Open / Get, recent searches |
 | `SearchPanel.java` | The search screen: one-row keyboard (English, digits, Hindi, voice), Apps & Settings and Movies & TV rows, the How to Watch sheet |
 | `MediaWatchService.java` | Notification listener → media sessions → Continue Watching store; DND access |
@@ -52,6 +53,12 @@ source (Nayuki, MIT) under `src/io/nayuki/qrcodegen`.
 - **Recommendations without system access.** Android's preview/Watch Next rows need a
   system-signature permission (verified: 0 rows readable), so the top shelf uses JustWatch/TMDB
   and Continue Watching uses published media sessions.
+- **A library is read from its server, not from its app.** Jellyfin clients keep their queue in
+  their own storage, so the shelf talks to the server instead: one `AuthenticateByName` call in
+  Settings keeps a token, `Items/Resume` gives exactly the items Jellyfin's own Continue Watching
+  shows (position, runtime, series/season/episode, backdrop, logo), and Remove writes
+  `PlaybackPositionTicks: 0` back through `UserData`. Nothing is guessed client-side; playback is
+  handed to Wholphin by deep link so its own progress reporting stays authoritative.
 
 - **Sharp news pictures without guessing.** A feed's `media:content` width lies as often as not
   and many newsrooms omit it entirely, so the candidate renditions are downloaded and measured

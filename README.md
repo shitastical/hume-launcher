@@ -44,7 +44,7 @@ Full list with screenshots: **[docs/features.md](docs/features.md)**.
 ## What this fork changes
 
 Upstream ships aimed at India. This fork retargets everything to the US and fixes the carousel, in
-four releases (7.7 → 8.0). Nothing here is a setting: these are the defaults, and every profile
+five releases (7.7 → 8.1). Nothing here is a setting: these are the defaults, and every profile
 gets them.
 
 ### 7.7 — The US instead of India
@@ -121,11 +121,34 @@ gets them.
 - Home no longer holds the screen on, at all, so whichever screensaver the TV is set to starts when
   it should.
 
+### 8.1 — Your own library, and it knows where you stopped
+
+- **Jellyfin as a carousel source.** Settings → Top Shelf → Source → **Jellyfin**: enter the
+  server's address, username and password once. The launcher signs in (`/Users/AuthenticateByName`),
+  keeps the token, and asks for your account's **Continue Watching**
+  (`/Users/{id}/Items/Resume`) — artwork included, at carousel size. A show's card is its backdrop
+  and logo, with the episode in the detail line.
+- **▶ Resume, not Play.** A half-watched film or episode says **Resume** and how much is left;
+  only titles you have not started say **Play**. Pressing it starts the item in
+  [Wholphin](https://github.com/damontecres/Wholphin) through its `wholphin://play` deep link, and
+  Wholphin resumes from the position the server holds.
+- **✕ Remove works on library titles.** Right moves the highlight from Resume to Remove, and
+  Remove clears the saved position on the server (`PlaybackPositionTicks: 0` — what Jellyfin's own
+  *Remove from Continue Watching* does), drops the card from the shelf and from the cached shelf,
+  and the title leaves Continue Watching everywhere. Holding Menu on the card offers **Resume** and
+  **Remove from Continue Watching**, exactly as it does for another app's entry.
+- **Progress survives a restart.** The cached carousel now stores each card's position as well, so
+  the frame after a cold start still says Resume instead of falling back to Play while the new
+  shelf is being fetched.
+- **Plain-http servers work.** `usesCleartextTraffic` is on, so the usual `http://box:8096` on a
+  home network is reachable; there is still no web view anywhere in the app.
+
 ## Releases
 
 | Version | What it is |
 |---|---|
-| **8.0** | Aerial Views as the screensaver; no launcher screensaver, and Home never holds the screen on |
+| **8.1** | Your own Jellyfin library on the shelf: Resume with time left, Remove from Continue Watching, long-press menu, progress kept with the cache |
+| 8.0 | Aerial Views as the screensaver; no launcher screensaver, and Home never holds the screen on |
 | 7.9 | Sharp news artwork (≥1280 px, `og:image` fallback), parallel feeds with a deadline, a shelf that keeps its stories, newsroom ticks that apply immediately |
 | 7.8 | Local news for all 50 states and DC, driven by the weather location, with a state override |
 | 7.7 | US news, US streaming services, US search region and locale instead of India |
@@ -164,5 +187,6 @@ Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 ## Credits
 
 Inter font (SIL OFL) · Nayuki QR Code generator (MIT) · weather from Open-Meteo, MET Norway and
-wttr.in · recommendations from JustWatch / TMDB / Stremio Cinemeta · news from US newsrooms' public
-RSS feeds (national, world, and every state and DC).
+wttr.in · recommendations from JustWatch / TMDB / Stremio Cinemeta, and from your own Jellyfin
+server when you connect one (played by [Wholphin](https://github.com/damontecres/Wholphin)) · news
+from US newsrooms' public RSS feeds (national, world, and every state and DC).
