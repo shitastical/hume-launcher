@@ -49,8 +49,8 @@ public class SettingsActivity extends Activity {
 
     // tvOS-style pages: the main list opens a page per section; Back returns to the main list.
     static final String ROOT = "root", PROFILES = "Profiles", SHELF = "Top Shelf", PRESENT = "Presentation",
-            INPUTS = "Inputs", WEATHER = "Weather", WATCHING = "Continue Watching", HOME = "Home",
-            PERMS = "Permissions", ABOUT = "About", WATCH_APPS = "Continue Watching Apps";
+            INPUTS = "Inputs", WEATHER = "Weather", HOME = "Home", PERMS = "Permissions", ABOUT = "About",
+            APPS = "Apps";
 
     FrameLayout leftPane;
     ScrollView scroller;
@@ -97,8 +97,7 @@ public class SettingsActivity extends Activity {
             case PRESENT: pagePresentation(); break;
             case INPUTS: pageInputs(); break;
             case WEATHER: pageWeather(); break;
-            case WATCHING: pageWatching(); break;
-            case WATCH_APPS: pageWatchingApps(); break;
+            case APPS: pageApps(); break;
             case HOME: pageHome(); break;
             case PERMS: pagePermissions(); break;
             case ABOUT: pageAbout(); break;
@@ -205,8 +204,7 @@ public class SettingsActivity extends Activity {
             case SHELF: grad = new int[]{0xFF64D2FF, 0xFF0A84FF}; glyph = "shelf"; break;
             case INPUTS: grad = new int[]{0xFF6E6E73, 0xFF2C2C2E}; glyph = "input"; break;
             case WEATHER: grad = new int[]{0xFF5AC8FA, 0xFF2D6BD8}; glyph = null; break;
-            case WATCHING: grad = new int[]{0xFFFF6482, 0xFFD6305A}; glyph = "present"; break;
-            case WATCH_APPS: grad = new int[]{0xFFFF6482, 0xFFD6305A}; glyph = "present"; break;
+            case APPS: grad = new int[]{0xFFFF6482, 0xFFD6305A}; glyph = "present"; break;
             case HOME: grad = new int[]{0xFF30D158, 0xFF1E9E48}; glyph = "house"; break;
             case PERMS: grad = new int[]{0xFF8E8E93, 0xFF48484A}; glyph = "shield"; break;
             default: grad = new int[]{0xFF8E8E93, 0xFF3A3A3C}; glyph = "gear"; break;
@@ -239,8 +237,6 @@ public class SettingsActivity extends Activity {
         nav(PRESENT, () -> com.petrobot.hume.present.Presenter.enabled(this) ? "On" : "Off");
         if (!Inputs.list(this).isEmpty()) nav(INPUTS, () -> Inputs.showCard(this) ? "On" : "Off");
         nav(WEATHER, () -> !Weather.enabled(this) ? "Off" : Weather.place(this).isEmpty() ? "On" : Weather.place(this));
-        nav(WATCHING, () -> !Profiles.homePrefs(this).getBoolean("cw_enabled", true) ? "Off" : MediaWatchService.granted(this) ? "On"
-                : Perms.listenerSupported(this) ? "Needs permission" : "Not on this TV");
         nav(HOME, () -> {
             String k = Profiles.homePrefs(this).getString("wallpaper", "aurora");
             int i = java.util.Arrays.asList(MainActivity.WALL_KEYS).indexOf(k);
@@ -283,8 +279,8 @@ public class SettingsActivity extends Activity {
                 show(SHELF);
             }).show();
         });
+        section("Recommendation Settings");
         if (Suggestions.showRecs(this)) {
-            section("Recommendations");
             row("Source", () -> Suggestions.sourceName(Suggestions.source(this)), this::chooseSource);
             if (!Suggestions.source(this).equals(Suggestions.SRC_JELLYFIN)) {
                 row("Content", () -> {
@@ -327,6 +323,24 @@ public class SettingsActivity extends Activity {
             }, this::chooseLanguages);
             row("TMDB token", () -> Suggestions.hasToken(this) ? "Connected" : "Not set", this::enterToken);
         }
+        row("Show Continue Watching", () -> Profiles.homePrefs(this).getBoolean("cw_enabled", true) ? "On" : "Off", () -> {
+            boolean on = !Profiles.homePrefs(this).getBoolean("cw_enabled", true);
+            Profiles.homePrefs(this).edit().putBoolean("cw_enabled", on).apply();
+            if (!on) Toast.makeText(this, "Continue Watching titles won\u2019t appear in the carousel", Toast.LENGTH_SHORT).show();
+        });
+        row("Access", () -> MediaWatchService.granted(this) ? "Allowed"
+                : Perms.listenerSupported(this) ? "Allow\u2026" : "Not on this TV", () -> Perms.requestListener(this));
+        row("Apps", () -> {
+            List<String> apps = MediaWatchService.Store.apps(this);
+            if (apps.isEmpty()) return "\u203a";
+            int hidden = 0;
+            for (String pkg : apps) if (MediaWatchService.Store.hidden(this).contains(pkg)) hidden++;
+            return (hidden == 0 ? apps.size() + " shown" : (apps.size() - hidden) + " of " + apps.size()) + "   \u203a";
+        }, () -> show(APPS));
+        row("Clear history", () -> "", () -> {
+            MediaWatchService.Store.clear(this);
+            Toast.makeText(this, "Continue Watching cleared", Toast.LENGTH_SHORT).show();
+        });
         if (Suggestions.showNews(this)) {
             section("News");
             row("Newsrooms", () -> {
@@ -503,34 +517,13 @@ public class SettingsActivity extends Activity {
         });
     }
 
-    void pageWatching() {
-        row("Show Continue Watching", () -> Profiles.homePrefs(this).getBoolean("cw_enabled", true) ? "On" : "Off", () -> {
-            boolean on = !Profiles.homePrefs(this).getBoolean("cw_enabled", true);
-            Profiles.homePrefs(this).edit().putBoolean("cw_enabled", on).apply();
-            if (!on) Toast.makeText(this, "Continue Watching titles won\u2019t appear in the carousel", Toast.LENGTH_SHORT).show();
-        });
-        row("Access", () -> MediaWatchService.granted(this) ? "Allowed"
-                : Perms.listenerSupported(this) ? "Allow\u2026" : "Not on this TV", () -> Perms.requestListener(this));
-        row("Apps", () -> {
-            List<String> apps = MediaWatchService.Store.apps(this);
-            if (apps.isEmpty()) return "\u203a";
-            int hidden = 0;
-            for (String pkg : apps) if (MediaWatchService.Store.hidden(this).contains(pkg)) hidden++;
-            return (hidden == 0 ? apps.size() + " shown" : (apps.size() - hidden) + " of " + apps.size()) + "   \u203a";
-        }, () -> show(WATCH_APPS));
-        row("Clear history", () -> "", () -> {
-            MediaWatchService.Store.clear(this);
-            Toast.makeText(this, "Continue Watching cleared", Toast.LENGTH_SHORT).show();
-        });
-    }
-
     /**
      * Which apps' titles appear on the carousel. Hiding an app only hides its cards: its history
      * stays on disk, so showing it again brings the titles back as they were.
      */
-    void pageWatchingApps() {
+    void pageApps() {
         List<String> apps = MediaWatchService.Store.apps(this);
-        section("Show in Continue Watching");
+        section("Show titles from");
         if (apps.isEmpty()) {
             row("Nothing to choose yet", () -> "", () -> Toast.makeText(this,
                     "No app on this TV plays video, so there is nothing to hide.", Toast.LENGTH_LONG).show());
@@ -546,7 +539,7 @@ public class SettingsActivity extends Activity {
                                 MediaWatchService.Store.hidden(this).contains(pkg));
                         // The page gains or loses "Show every app again", so rebuild it and keep
                         // the focus on the row that was just toggled.
-                        show(WATCH_APPS);
+                        show(APPS);
                         android.view.View r = list.getChildAt(Math.min(row + 1, list.getChildCount() - 1));
                         if (r != null && r.isFocusable()) r.requestFocus();
                     });

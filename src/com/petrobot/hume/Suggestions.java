@@ -463,6 +463,76 @@ final class Suggestions {
         return String.join(" \u00b7 ", out);
     }
 
+    static final String JW_SEARCH = "query S($country: Country!, $language: Language!, $first: Int!, $filter: TitleFilter) {"
+            + " popularTitles(country: $country, filter: $filter, first: $first, sortBy: POPULAR, sortRandomSeed: 0) {"
+            + " edges { node { content(country: $country, language: $language) { title runtime backdrops { backdropUrl } } } } } }";
+
+    /**
+     * Poster art for a title known only by name: a Continue Watching card from an app that publishes
+     * no artwork of its own (Tubi sends a title and nothing else). JustWatch's public search is
+     * keyless and already behind the recommendation shelf, so it can say what a title looks like.
+     *
+     * <p>A name alone is weak evidence — a dozen different films are called "Halloween", and an
+     * episode called "The Pilot" would otherwise wear a film's poster — so a hit has to agree with
+     * the length actually played, which the media session did publish. {@code ""} means nothing fit
+     * and {@code null} means the question could not be asked, which is worth asking again later.
+     *
+     * @param durMs how long the item is in the session, or 0 if unknown
+     */
+    static String poster(String title, long durMs) {
+        if (title == null || title.trim().isEmpty()) return "";
+        try {
+            JSONObject filter = new JSONObject().put("searchQuery", title.trim());
+            JSONObject vars = new JSONObject().put("country", "US").put("language", "en")
+                    .put("first", 8).put("filter", filter);
+            JSONObject body = new JSONObject().put("query", JW_SEARCH).put("variables", vars);
+            JSONObject res = post("https://apis.justwatch.com/graphql", body.toString());
+            JSONArray edges = res.getJSONObject("data").getJSONObject("popularTitles").getJSONArray("edges");
+            String want = plainTitle(title);
+            double minutes = durMs > 0 ? durMs / 60000d : 0;
+            List<JSONObject> named = new ArrayList<>();
+            for (int i = 0; i < edges.length(); i++) {
+                JSONObject ct = edges.getJSONObject(i).getJSONObject("node").getJSONObject("content");
+                JSONArray bds = ct.optJSONArray("backdrops");
+                if (bds == null || bds.length() == 0) continue;
+                if (plainTitle(ct.optString("title")).equals(want)) named.add(ct);
+            }
+            JSONObject best = null;
+            if (minutes <= 0) {
+                // Nothing to check a length against (a live stream, say): believe a name only when
+                // the catalogue has it once, rather than guess between its namesakes.
+                best = named.size() == 1 ? named.get(0) : null;
+            } else {
+                double bestOff = Double.MAX_VALUE;
+                for (JSONObject ct : named) {
+                    int run = ct.optInt("runtime", 0);
+                    if (run <= 0) continue;
+                    double off = Math.abs(run - minutes);
+                    if (off <= Math.max(6, minutes * 0.12) && off < bestOff) {
+                        best = ct;
+                        bestOff = off;
+                    }
+                }
+            }
+            if (best == null) return "";
+            JSONArray bds = best.getJSONArray("backdrops");
+            return "https://images.justwatch.com" + bds.getJSONObject(0).getString("backdropUrl")
+                    .replace("{profile}", "s1440").replace("{format}", "jpg");
+        } catch (Exception e) {
+            android.util.Log.w("TvHome", "poster for \"" + title + "\": " + e);
+            return null;
+        }
+    }
+
+    /** A title to compare on: case, punctuation, a leading "the" and a trailing year taken out. */
+    static String plainTitle(String t) {
+        if (t == null) return "";
+        String s = t.toLowerCase().replaceAll("\\(\\s*\\d{4}\\s*\\)", " ")
+                .replaceAll("[^a-z0-9]+", " ").trim();
+        if (s.startsWith("the ")) s = s.substring(4);
+        return s;
+    }
+
     static JSONObject post(String url, String json) throws Exception {
         HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
         con.setConnectTimeout(8000);
@@ -854,6 +924,19 @@ final class Suggestions {
         Intent launch = pm.getLeanbackLaunchIntentForPackage(p.pkg);
         if (launch == null) launch = pm.getLaunchIntentForPackage(p.pkg);
         if (launch != null) start(c, launch);
+    }
+
+    /**
+     * The nearest link to one of an app's own titles when its media session carries no id to
+     * deep-link with. Tubi's session has only title, description and duration, but its search screen
+     * opens from a link and lands on the title there: {@code tubitv://search/<query>} resolves to
+     * com.tubitv.activities.MainActivity and loads that search. Null means "no better than the app".
+     */
+    static Intent searchLink(String pkg, String title) {
+        if (pkg.equals("com.tubitv") && !title.isEmpty()) {
+            return view("tubitv://search/" + Uri.encode(title), pkg);
+        }
+        return null;
     }
 
     static Intent view(String url, String pkg) {

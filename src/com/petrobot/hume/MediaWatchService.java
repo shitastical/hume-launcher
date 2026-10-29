@@ -109,6 +109,19 @@ public class MediaWatchService extends NotificationListenerService {
     static final class Store {
         static final int MAX = 20;
         static final String K_HIDDEN = "cw_hidden";
+        /** Fallback card art is one file per app, shared by all of its titles. */
+        static final String APP_ART = "app_";
+        /** Title lookups per shelf load: a couple of seconds at most, and the rest follow later. */
+        static final int LOOKUPS = 5;
+
+        /**
+         * Whether a card is still the app's own plate rather than a picture of the title. Those are
+         * the ones worth looking up: an app that publishes artwork needs no help.
+         */
+        static boolean needsArt(String art) {
+            if (art == null || art.isEmpty()) return true;
+            return art.startsWith("/") && new File(art).getName().startsWith(APP_ART);
+        }
 
         static File file(Context c) {
             return new File(c.getFilesDir(), Profiles.continueFile(Profiles.current(c).id));
@@ -135,6 +148,51 @@ public class MediaWatchService extends NotificationListenerService {
                 if (s != null && s.length() > 0) return s.toString();
             }
             return "";
+        }
+
+        /**
+         * Card art for an app that publishes none of its own: its banner if it has one, else its
+         * icon, on a dark plate the size of a card. Written once per app and cached on disk.
+         */
+        static String appArt(Context c, String pkg) {
+            File dir = new File(c.getFilesDir(), "cw");
+            File f = new File(dir, APP_ART + Integer.toHexString(pkg.hashCode()) + ".jpg");
+            if (f.isFile() && f.length() > 0) return f.getAbsolutePath();
+            android.content.pm.PackageManager pm = c.getPackageManager();
+            android.graphics.drawable.Drawable d = null;
+            boolean banner = true;
+            try {
+                android.content.pm.ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                d = ai.loadBanner(pm);
+                if (d == null) {
+                    banner = false;
+                    d = ai.loadIcon(pm);
+                }
+            } catch (Exception ignored) {
+            }
+            if (d == null) return "";
+            try {
+                dir.mkdirs();
+                int w = 640, h = 360;
+                Bitmap b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas cv = new android.graphics.Canvas(b);
+                android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                p.setShader(new android.graphics.LinearGradient(0, 0, 0, h, 0xFF14141A, 0xFF24242E,
+                        android.graphics.Shader.TileMode.CLAMP));
+                cv.drawRect(0, 0, w, h, p);
+                int iw = Math.max(1, d.getIntrinsicWidth()), ih = Math.max(1, d.getIntrinsicHeight());
+                // A banner is 5:3 like a card, so it fills the plate and crops; an icon sits in the middle.
+                float sc = banner ? Math.max(w / (float) iw, h / (float) ih) : (h * 0.5f) / ih;
+                int dw = Math.round(iw * sc), dh = Math.round(ih * sc);
+                d.setBounds((w - dw) / 2, (h - dh) / 2, (w - dw) / 2 + dw, (h - dh) / 2 + dh);
+                d.draw(cv);
+                try (OutputStream os = new FileOutputStream(f)) {
+                    b.compress(Bitmap.CompressFormat.JPEG, 88, os);
+                }
+                return f.getAbsolutePath();
+            } catch (Exception e) {
+                return "";
+            }
         }
 
         static synchronized void record(Context c, String pkg, MediaMetadata m, PlaybackState s) {
@@ -191,14 +249,59 @@ public class MediaWatchService extends NotificationListenerService {
                             MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI);
                     if (uri.startsWith("http")) art = uri;
                 }
+                // An app that publishes no picture at all (Tubi sends only title, description and
+                // duration) gets its icon on a dark plate, so its card is not blank. resolveArt()
+                // then swaps in the title's own poster, if one can be found.
+                if (art.isEmpty()) art = appArt(c, pkg);
+                // Whether that poster lookup has run already, so a shelf load does not repeat it.
+                boolean looked = prev != null && prev.optBoolean("looked");
                 JSONObject e = new JSONObject().put("key", key).put("pkg", pkg).put("title", title).put("sub", sub)
-                        .put("art", art).put("pos", pos).put("dur", dur).put("mid", mid)
+                        .put("art", art).put("pos", pos).put("dur", dur).put("mid", mid).put("looked", looked)
                         .put("ts", System.currentTimeMillis());
                 JSONArray res = new JSONArray().put(e);
                 for (int i = 0; i < out.length() && res.length() < MAX; i++) res.put(out.get(i));
                 write(c, res);
             } catch (Exception ignored) {
             }
+        }
+
+        /**
+         * Swaps a title's own poster in for the app's plate, by looking the name up against
+         * JustWatch's public catalogue. This is the only way to picture a card whose app publishes
+         * no artwork — Tubi sends a title and nothing else — and it also fixes cards already on the
+         * shelf, so nothing has to be played twice.
+         *
+         * <p>Runs on the caller's thread ({@link #list} is read off the main thread), a few titles at
+         * a time: a shelf load waits for those lookups, so the count stays small and the rest are
+         * picked up on later loads. A title that was found, or that the catalogue does not have,
+         * is marked looked so it is never asked about again; if the network is down the batch stops
+         * and nothing is marked, so the next load tries again.
+         */
+        static synchronized void resolveArt(Context c) {
+            JSONArray a = read(c);
+            boolean changed = false;
+            int tries = 0, found = 0;
+            try {
+                for (int i = 0; i < a.length() && tries < LOOKUPS; i++) {
+                    JSONObject o = a.optJSONObject(i);
+                    if (o == null || o.optBoolean("looked") || !needsArt(o.optString("art"))) continue;
+                    tries++;
+                    String poster = Suggestions.poster(o.optString("title"), o.optLong("dur", 0));
+                    if (poster == null) break;  // could not ask: try again on the next load
+                    o.put("looked", true);
+                    if (poster.isEmpty()) {
+                        android.util.Log.i("TvHome", "no poster for \"" + o.optString("title") + "\"");
+                    } else {
+                        o.put("art", poster);
+                        found++;
+                    }
+                    changed = true;
+                }
+            } catch (Exception e) {
+                android.util.Log.w("Hume", "poster lookup: " + e);
+            }
+            if (tries > 0) android.util.Log.i("TvHome", "continue watching posters: " + found + "/" + tries);
+            if (changed) write(c, a);
         }
 
         /** Drops entries last played more than 7 days ago (and their saved artwork). */
@@ -211,8 +314,9 @@ public class MediaWatchService extends NotificationListenerService {
                 if (o == null) continue;
                 if (now - o.optLong("ts", now) > EXPIRE_MS) {
                     changed = true;
+                    // Shared fallback art is left for the app's other titles still on the shelf.
                     String art = o.optString("art");
-                    if (art.startsWith("/")) new File(art).delete();
+                    if (art.startsWith("/") && !new File(art).getName().startsWith(APP_ART)) new File(art).delete();
                 } else {
                     keep.put(o);
                 }
@@ -345,7 +449,9 @@ public class MediaWatchService extends NotificationListenerService {
         static final long EXPIRE_MS = 7L * 24 * 60 * 60 * 1000;
 
         static List<Suggestions.Item> list(Context c) {
-            JSONArray a = pruneExpired(c);
+            pruneExpired(c);
+            resolveArt(c);
+            JSONArray a = read(c);
             java.util.Set<String> hidden = hidden(c);
             List<Suggestions.Item> out = new ArrayList<>();
             for (int i = 0; i < a.length(); i++) {
@@ -362,7 +468,10 @@ public class MediaWatchService extends NotificationListenerService {
                 it.key = o.optString("key");
                 it.title = o.optString("title");
                 it.overview = o.optString("sub");
-                it.backdrop = o.optString("art");
+                // Entries recorded before the app had a picture (and apps that never publish one)
+                // fall back to the app's own art, so an existing card gains it too.
+                String art = o.optString("art");
+                it.backdrop = art.isEmpty() ? appArt(c, pkg) : art;
                 it.year = "";
                 it.genres = "";
                 it.mid = o.optString("mid");

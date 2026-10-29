@@ -16,7 +16,10 @@ been reworked around sharp artwork that never disappears. What changed, in detai
 
 - **Home**: Liquid Glass dock, 6-across app grid in Apple's measured proportions, focus lift and
   zoom-to-open, More Apps folder, five backgrounds.
-- **Carousel**: Continue Watching first (Resume / Remove, expires after 7 days), then US news
+- **Carousel**: Continue Watching first (Resume / Remove, expires after 7 days; apps that publish
+  no artwork — Tubi — are pictured from JustWatch's catalogue by title, matched on run time, and
+  fall back to the app's own icon; apps that publish no item id open their own search for the
+  title), then US news
   (national, your state, world) and rotating recommendations from your streaming services —
   JustWatch, TMDB, Stremio, or your own Jellyfin library, whose half-watched titles resume in
   Wholphin and can be removed from Continue Watching from the card. Goes
@@ -154,7 +157,7 @@ gets them.
   video and continues from its own saved position. Apps that publish no id behave exactly as
   before: their launcher opens. (Passing `&t=` was tried and dropped: it makes the link resolve to
   a chooser instead of the app.)
-- **Pick the apps on the carousel.** Settings → Continue Watching → **Apps** lists **every app
+- **Pick the apps on the carousel.** Settings → Top Shelf → **Apps** lists **every app
   Continue Watching can work with** — the streaming services titles open in, SmartTube, and the
   players it knows (YouTube, Plex, Jellyfin, Kodi) — with **Shown** / **Hidden** per
   app. Not the whole system: a file manager, a downloader or a settings app has nothing to resume.

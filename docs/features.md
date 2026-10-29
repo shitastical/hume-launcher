@@ -124,13 +124,20 @@ it, so it can't open Hume's Search.)
 Full-screen artwork behind the dock while a dock app is focused. One carousel holds, in order:
 
 1. **Continue Watching** (up to six): what you played recently in each app, from the "now playing"
-   information apps publish (title, artwork, position, time left). **▶ Resume** opens that title
-   rather than only its app: when the app publishes the item's own id (SmartTube and the YouTube
-   apps do), the card deep-links straight to the video and the app continues from its saved
-   position; apps that publish no id are launched as before. **✕ Remove** drops it. Titles not
-   played again for **7 days** expire.
+   information apps publish (title, artwork, position, time left). An app that publishes no picture
+   (Tubi sends only title, description and duration) still gets a real card: the title is looked up
+   by name in JustWatch's catalogue and pictured with its own art, accepting a match only when its
+   run time agrees with the length actually played, so a namesake film is never mistaken for the
+   one you watched. Only when nothing fits does the card fall back to the app's own icon on a dark
+   plate — and both are replaced the moment the app itself publishes a picture. **▶ Resume** opens
+   that title rather than only its app: when the
+   app publishes the item's own id (SmartTube and the YouTube apps do), the card deep-links straight
+   to the video and the app continues from its saved position; an app whose session carries no id
+   opens its own search for the title where it has one (Tubi's `tubitv://search/<title>`), and is
+   otherwise launched as before. **✕ Remove** drops it. Titles not played again for **7 days**
+   expire.
 
-   Settings → Continue Watching → **Apps** picks which apps appear on the carousel: a row for every
+   Settings → Top Shelf → **Apps** picks which apps appear on the carousel: a row for every
    app the feature works with — the streaming services titles open in, SmartTube, and the players
    it knows (YouTube, Plex, Jellyfin, Kodi) — not every app on the TV, since a file
    manager or a settings app has nothing to resume. An app outside that list appears as soon as it
@@ -185,7 +192,7 @@ Full-screen artwork behind the dock while a dock app is focused. One carousel ho
 - **Newsrooms** (Settings → Top Shelf → Newsrooms) are switched on and off where they are ticked,
   with a single **Done**; the shelf updates behind the dialog, and at least one newsroom always
   stays on.
-- Each profile chooses what it shows (Settings → Top Shelf / Continue Watching, or setup).
+- Each profile chooses what it shows (Settings → Top Shelf, or setup).
 
 ## Idle full-screen carousel
 
@@ -291,7 +298,7 @@ Back, at 60% of the normal level. Settings → Home → Navigation sounds.
 ## Settings
 
 Opened from the gear in Control Center. A main list opens a page per section (Back returns):
-Profiles, Top Shelf, Presentation, Inputs, Weather, Continue Watching, Home, Permissions, About, and
+Profiles, Top Shelf, Presentation, Inputs, Weather, Home, Permissions, About, and
 the TV's own settings.
 
 | | |

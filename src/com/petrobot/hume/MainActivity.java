@@ -1631,7 +1631,7 @@ public class MainActivity extends Activity {
         loadHero();
     }
 
-    /** Continue Watching can be switched off per profile (Settings -> Continue Watching). */
+    /** Continue Watching can be switched off per profile (Settings -> Top Shelf). */
     boolean cwEnabled() {
         return Profiles.homePrefs(this).getBoolean("cw_enabled", true);
     }
@@ -1694,7 +1694,9 @@ public class MainActivity extends Activity {
         io.execute(() -> {
             List<Suggestions.Item> cwItems = cw ? MediaWatchService.Store.list(this) : new ArrayList<>();
             StringBuilder sig = new StringBuilder();
-            for (Suggestions.Item it : cwItems) sig.append(it.key).append(it.progress).append(';');
+            // Art is part of the signature: a card whose poster replaced the app's plate should
+            // redraw even though nothing was watched since the shelf was last built.
+            for (Suggestions.Item it : cwItems) sig.append(it.key).append(it.progress).append(it.backdrop).append(';');
             boolean cwChanged = !sig.toString().equals(lastCwSig);
             lastCwSig = sig.toString();
             // Stale is fine here: the carousel keeps what it has until the new stories are in, so
@@ -2280,6 +2282,10 @@ public class MainActivity extends Activity {
         // on the app's home screen, which is all "Resume" used to do.
         String pkg = it.pkg;
         if (!it.mid.isEmpty() && Suggestions.start(this, resumeIntent(it, pkg))) return;
+        // Apps that publish no id (Tubi sends only a title) can still be opened on the title
+        // itself, in their own search; only when they have no such link does the app just open.
+        Intent onTitle = Suggestions.searchLink(pkg, it.title);
+        if (onTitle != null && Suggestions.start(this, onTitle)) return;
         Intent i = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
         if (i == null) i = getPackageManager().getLaunchIntentForPackage(pkg);
         if (i != null) Suggestions.start(this, i);
